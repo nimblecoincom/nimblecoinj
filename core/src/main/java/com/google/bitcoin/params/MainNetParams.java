@@ -35,7 +35,7 @@ public class MainNetParams extends NetworkParameters {
         addressHeader = 0;
         p2shHeader = 5;
         acceptableAddressCodes = new int[] { addressHeader, p2shHeader };
-        port = 8333;
+        port = 8335;
         packetMagic = 0xf9beb4d9L;
         genesisBlock.setDifficultyTarget(0x1d00ffffL);
         genesisBlock.setTime(1231006505L);
