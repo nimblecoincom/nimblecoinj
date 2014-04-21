@@ -2,9 +2,9 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.google</groupId>
-  <artifactId>bitcoinj-parent</artifactId>
-  <version>0.12-SNAPSHOT</version>
+  <groupId>com.nimblecoin</groupId>
+  <artifactId>nimblecoinj-parent</artifactId>
+  <version>0.1-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -20,14 +20,14 @@
   </parent>
 
   <scm>
-    <connection>scm:git:https://code.google.com/p/bitcoinj/</connection>
-    <developerConnection>scm:git:https://code.google.com/p/bitcoinj/</developerConnection>
-    <url>http://code.google.com/p/bitcoinj/source/browse</url>
+    <connection>scm:git:https://github.com/nimblecoincom/NimbleCoinJ.git</connection>
+    <developerConnection>scm:git:https://github.com/nimblecoincom/NimbleCoinJ.git</developerConnection>
+    <url>https://github.com/nimblecoincom/NimbleCoinJ</url>
   </scm>
 
-  <name>bitcoinj Parent</name>
-  <description>Provides the common configuration for the BitCoinJ modules</description>
-  <url>http://code.google.com/p/bitcoinj</url>
+  <name>nimblecoinj Parent</name>
+  <description>Provides the common configuration for the NimbleCoinJ modules</description>
+  <url>https://github.com/nimblecoincom/NimbleCoinJ</url>
 
   <licenses>
     <license>
@@ -39,16 +39,9 @@
   </licenses>
 
   <issueManagement>
-    <system>Google Code</system>
-    <url>http://code.google.com/p/bitcoinj/issues/list</url>
+    <system>Github</system>
+    <url>https://github.com/nimblecoincom/NimbleCoinJ/issues</url>
   </issueManagement>
-
-  <mailingLists>
-    <mailingList>
-      <name>bitcoinj Google Group</name>
-      <post>https://groups.google.com/forum/#!forum/bitcoinj</post>
-    </mailingList>
-  </mailingLists>
 
   <repositories>
     <repository>

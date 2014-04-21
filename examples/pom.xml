@@ -19,21 +19,21 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <groupId>com.google</groupId>
-        <artifactId>bitcoinj-parent</artifactId>
-        <version>0.12-SNAPSHOT</version>
+        <groupId>com.nimblecoin</groupId>
+        <artifactId>nimblecoinj-parent</artifactId>
+        <version>0.1-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>bitcoinj-examples</artifactId>
+    <artifactId>nimblecoinj-examples</artifactId>
 
-    <name>bitcoinj Examples</name>
-    <description>A collection of examples using the bitcoinj library</description>
+    <name>nimblecoinj Examples</name>
+    <description>A collection of examples using the nimblecoinj library</description>
 
     <dependencies>
         <dependency>
-            <groupId>com.google</groupId>
-            <artifactId>bitcoinj</artifactId>
+            <groupId>com.nimblecoin</groupId>
+            <artifactId>nimblecoinj</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
         <dependency>
