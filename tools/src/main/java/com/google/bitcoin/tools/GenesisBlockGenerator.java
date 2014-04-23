@@ -17,6 +17,11 @@ import com.google.bitcoin.params.MainNetParams;
 import com.google.bitcoin.script.Script;
 import com.google.bitcoin.script.ScriptOpCodes;
 
+/**
+ * Generates Nimblecoin genesis block
+ * @author Oscar Guindzberg
+ *
+ */
 public class GenesisBlockGenerator {
 	public static void main(String[] args) {
 		createGenesis(MainNetParams.get());
