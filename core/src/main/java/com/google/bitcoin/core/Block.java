@@ -571,6 +571,9 @@ public class Block extends Message {
         StringBuilder s = new StringBuilder("v");
         s.append(version);
         s.append(" block: \n");
+        s.append("   hash: ");
+        s.append(getHash());
+        s.append("\n");
         s.append("   previous block: ");
         s.append(getPrevBlockHash());
         s.append("\n");
@@ -613,6 +616,10 @@ public class Block extends Message {
                     return;
                 // No, so increment the nonce and try again.
                 setNonce(getNonce() + 1);
+                if (getNonce() % 1000000 == 0 ) {
+                	log.info("Solving block. Nonce: " + getNonce());
+                }
+                
             } catch (VerificationException e) {
                 throw new RuntimeException(e); // Cannot happen.
             }
