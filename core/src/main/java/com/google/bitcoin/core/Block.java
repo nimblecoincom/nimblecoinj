@@ -99,7 +99,7 @@ public class Block extends Message {
     private transient int optimalEncodingMessageSize;
 
     /** Special case constructor, used for the genesis node, cloneAsHeader and unit tests. */
-    Block(NetworkParameters params) {
+    public Block(NetworkParameters params) {
         super(params);
         // Set up a few basic things. We are not complete after this though.
         version = 1;

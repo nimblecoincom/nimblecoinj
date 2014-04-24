@@ -20,9 +20,11 @@ import com.google.bitcoin.params.*;
 import com.google.bitcoin.script.Script;
 import com.google.bitcoin.script.ScriptOpCodes;
 import com.google.common.base.Objects;
+
 import org.spongycastle.util.encoders.Hex;
 
 import javax.annotation.Nullable;
+
 import java.io.ByteArrayOutputStream;
 import java.io.Serializable;
 import java.math.BigInteger;
@@ -100,15 +102,15 @@ public abstract class NetworkParameters implements Serializable {
         Block genesisBlock = new Block(n);
         Transaction t = new Transaction(n);
         try {
-            // A script containing the difficulty bits and the following message:
-            //
-            //   "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks"
-            byte[] bytes = Hex.decode
-                    ("04ffff001d0104455468652054696d65732030332f4a616e2f32303039204368616e63656c6c6f72206f6e206272696e6b206f66207365636f6e64206261696c6f757420666f722062616e6b73");
+        	String genesisMessage = "Life is what happens to you while you’re busy making other plans";
+        	char[] chars = genesisMessage.toCharArray();
+        	byte[] bytes = new byte[chars.length];
+        	for(int i=0;i<bytes.length;i++) bytes[i] = (byte) chars[i];
             t.addInput(new TransactionInput(n, t, bytes));
-            ByteArrayOutputStream scriptPubKeyBytes = new ByteArrayOutputStream();
-            Script.writeBytes(scriptPubKeyBytes, Hex.decode
-                    ("04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f"));
+            
+            ByteArrayOutputStream scriptPubKeyBytes = new ByteArrayOutputStream();            
+            byte[] genesisPubKey = new byte[]{3, -51, -33, -104, -27, 100, -18, -64, 59, -108, 89, -87, -2, 102, 48, -52, -116, 15, 67, -120, 23, 108, -3, 94, 46, 12, 43, -62, 12, -124, 14, 96, -19};
+            Script.writeBytes(scriptPubKeyBytes, genesisPubKey);
             scriptPubKeyBytes.write(ScriptOpCodes.OP_CHECKSIG);
             t.addOutput(new TransactionOutput(n, t, Utils.toNanoCoins(50, 0), scriptPubKeyBytes.toByteArray()));
         } catch (Exception e) {

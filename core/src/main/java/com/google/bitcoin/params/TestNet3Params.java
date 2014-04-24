@@ -34,19 +34,19 @@ public class TestNet3Params extends NetworkParameters {
         packetMagic = 0x0b110907;
         interval = INTERVAL;
         targetTimespan = TARGET_TIMESPAN;
-        proofOfWorkLimit = Utils.decodeCompactBits(0x1d00ffffL);
+        proofOfWorkLimit = Utils.decodeCompactBits(0x1f00ffffL);
         port = 18335;
         addressHeader = 111;
         p2shHeader = 196;
         acceptableAddressCodes = new int[] { addressHeader, p2shHeader };
         dumpedPrivateKeyHeader = 239;
-        genesisBlock.setTime(1296688602L);
-        genesisBlock.setDifficultyTarget(0x1d00ffffL);
-        genesisBlock.setNonce(414098458);
+        genesisBlock.setTime(1398369885L);
+        genesisBlock.setDifficultyTarget(0x1e00ffffL);
+        genesisBlock.setNonce(20609161);
         spendableCoinbaseDepth = 100;
         subsidyDecreaseBlockCount = 210000;
         String genesisHash = genesisBlock.getHashAsString();
-        checkState(genesisHash.equals("000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"));
+        checkState(genesisHash.equals("000000d6aac8f92ebcd68a8ba02540fae29b438038a6b10c3ad87d8326b6bef5"));
         alertSigningKey = Hex.decode("04302390343f91cc401d56d68b123028bf52e5fca1939df127f63c6467cdf9c8e2c14b61104cf817d0b780da337893ecc4aaff1309e536162dabbdb45200ca2b0a");
 
         dnsSeeds = new String[] {
