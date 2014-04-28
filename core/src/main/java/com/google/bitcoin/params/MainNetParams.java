@@ -37,14 +37,14 @@ public class MainNetParams extends NetworkParameters {
         acceptableAddressCodes = new int[] { addressHeader, p2shHeader };
         port = 8335;
         packetMagic = 0xf9beb4d9L;
-        genesisBlock.setDifficultyTarget(0x1e00ffffL);
-        genesisBlock.setTime(1398369864L);
-        genesisBlock.setNonce(10355621);
+        genesisBlock.setDifficultyTarget(0x1f00ffffL);
+        genesisBlock.setTime(1398701302L);
+        genesisBlock.setNonce(8371);
         id = ID_MAINNET;
         subsidyDecreaseBlockCount = 210000;
         spendableCoinbaseDepth = 100;
         String genesisHash = genesisBlock.getHashAsString();
-        checkState(genesisHash.equals("000000d15881a9faba8012d9cc4ccab032cc8d5cf2fbb319eb55ea3fd5a14dc3"),
+        checkState(genesisHash.equals("0000e23f6b9170fc6dbd25e953dcbbc10c9c9c0748ff9623a089c7c8a0976b93"),
                 genesisHash);
 
         // This contains (at a minimum) the blocks which are not BIP30 compliant. BIP30 changed how duplicate

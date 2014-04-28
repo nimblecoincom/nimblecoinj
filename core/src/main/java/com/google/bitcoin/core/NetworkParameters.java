@@ -109,7 +109,7 @@ public abstract class NetworkParameters implements Serializable {
             t.addInput(new TransactionInput(n, t, bytes));
             
             ByteArrayOutputStream scriptPubKeyBytes = new ByteArrayOutputStream();            
-            byte[] genesisPubKey = new byte[]{3, -51, -33, -104, -27, 100, -18, -64, 59, -108, 89, -87, -2, 102, 48, -52, -116, 15, 67, -120, 23, 108, -3, 94, 46, 12, 43, -62, 12, -124, 14, 96, -19};
+            byte[] genesisPubKey = new byte[]{2, -23, 45, 110, 36, 25, -85, -34, 43, 83, -42, 52, 7, -127, -18, -57, 52, -18, -20, -82, 125, -21, -33, 80, 116, 49, 29, -74, 12, 85, 55, -36, -50};
             Script.writeBytes(scriptPubKeyBytes, genesisPubKey);
             scriptPubKeyBytes.write(ScriptOpCodes.OP_CHECKSIG);
             t.addOutput(new TransactionOutput(n, t, Utils.toNanoCoins(50, 0), scriptPubKeyBytes.toByteArray()));
