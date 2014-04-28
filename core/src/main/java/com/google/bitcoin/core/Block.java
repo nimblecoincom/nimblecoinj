@@ -102,7 +102,7 @@ public class Block extends Message {
     public Block(NetworkParameters params) {
         super(params);
         // Set up a few basic things. We are not complete after this though.
-        version = 1;
+        version = NetworkParameters.PROTOCOL_VERSION;
         difficultyTarget = 0x1d07fff8L;
         time = System.currentTimeMillis() / 1000;
         prevBlockHash = Sha256Hash.ZERO_HASH;
@@ -131,6 +131,19 @@ public class Block extends Message {
         super(params, payloadBytes, 0, parseLazy, parseRetain, length);
     }
 
+    /**
+     * Construct a block initialized with all the given fields. Used for mining
+     * @param params Which network the block is for.
+     * @param version This should usually be set to 1 or 2, depending on if the height is in the coinbase input.
+     * @param prevBlockHash Reference to previous block in the chain or {@link Sha256Hash#ZERO_HASH} if genesis.
+     * @param time UNIX time when the block was mined.
+     * @param difficultyTarget Number which this block hashes lower than.
+     */
+    public Block(NetworkParameters params, long version, Sha256Hash prevBlockHash, long time, long difficultyTarget) {
+    	this(params, version, prevBlockHash, null, time, difficultyTarget, 0, new LinkedList<Transaction>());
+        length = 80;
+    }
+    
 
     /**
      * Construct a block initialized with all the given fields.
@@ -616,7 +629,7 @@ public class Block extends Message {
                     return;
                 // No, so increment the nonce and try again.
                 setNonce(getNonce() + 1);
-                if (getNonce() % 1000000 == 0 ) {
+                if (getNonce() % 1000 == 0 ) {
                 	log.info("Solving block. Nonce: " + getNonce());
                 }
                 

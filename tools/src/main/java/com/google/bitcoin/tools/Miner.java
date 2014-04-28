@@ -2,14 +2,13 @@ package com.google.bitcoin.tools;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
 
 import com.google.bitcoin.core.Block;
 import com.google.bitcoin.core.ECKey;
 import com.google.bitcoin.core.FullPrunedBlockChain;
 import com.google.bitcoin.core.NetworkParameters;
 import com.google.bitcoin.core.Sha256Hash;
+import com.google.bitcoin.core.StoredBlock;
 import com.google.bitcoin.core.Transaction;
 import com.google.bitcoin.core.TransactionInput;
 import com.google.bitcoin.core.TransactionOutput;
@@ -29,15 +28,26 @@ import com.google.bitcoin.store.H2FullPrunedBlockStore;
 public class Miner {
 	public static void main(String[] args) throws Exception {
 		NetworkParameters params = MainNetParams.get();
-		String walletFileName = "miner.wallet";
-        String chainFileName = "miner.chain";
-        Wallet wallet = new Wallet(params);
+		String walletFileName = "main.miner.wallet";
+        String chainFileName = "main.miner.chain";
+        Wallet wallet;
+        File walletFile = new File(walletFileName);
+        if(walletFile.exists()) {
+        	wallet = Wallet.loadFromFile(walletFile);	
+        } else {
+        	wallet = new Wallet(params);
+        }
+        
         FullPrunedBlockStore store = new H2FullPrunedBlockStore(params, new File(chainFileName).getAbsolutePath(), 5000);
 		FullPrunedBlockChain chain = new FullPrunedBlockChain(params, wallet, store);
 
-        mineForNetwork(params, wallet, chain);
+        for (int i = 0; i < 55; i++) {
+    		mineForNetwork(params, wallet, chain);
+    		Thread.sleep(500);
+		}
 
-		wallet.saveToFile(new File(walletFileName));        
+		wallet.saveToFile(new File(walletFileName));       
+		store.close();
     }
 	
 	public static void mineForNetwork(NetworkParameters params, Wallet wallet, FullPrunedBlockChain chain) throws Exception {
@@ -54,19 +64,22 @@ public class Miner {
         Script.writeBytes(scriptPubKeyBytes, key.getPubKey());
         scriptPubKeyBytes.write(ScriptOpCodes.OP_CHECKSIG);
         coinbaseTransaction.addOutput(new TransactionOutput(params, coinbaseTransaction, Utils.toNanoCoins(50, 0), scriptPubKeyBytes.toByteArray()));
-
-        Sha256Hash prevBlockHash = Sha256Hash.ZERO_HASH;
-        Sha256Hash merkleRoot = null;
+        StoredBlock chainHead = chain.getChainHead();
+        Sha256Hash prevBlockHash = chainHead.getHeader().getHash();        
         long time = System.currentTimeMillis() / 1000;
-        long difficultyTarget = 0x1f00ffffL;
-        long nonce = 0;
-        List<Transaction> transactions = new ArrayList<Transaction>();
-        transactions.add(coinbaseTransaction);
-        Block newBlock = new Block(params, NetworkParameters.PROTOCOL_VERSION, prevBlockHash, merkleRoot, time, difficultyTarget, nonce, transactions);        
+        long difficultyTarget = getDifficultyTargetForNewBlock(chainHead);
+        
+        Block newBlock = new Block(params, NetworkParameters.PROTOCOL_VERSION, prevBlockHash, time, difficultyTarget);
+        newBlock.addTransaction(coinbaseTransaction);
         newBlock.solve();
+        newBlock.verify();
         chain.add(newBlock);
         System.out.println("block: " + newBlock);
 		
+	}
+
+	private static long getDifficultyTargetForNewBlock(StoredBlock chainHead) {
+		return chainHead.getHeader().getDifficultyTarget();
 	}
 	
 }
