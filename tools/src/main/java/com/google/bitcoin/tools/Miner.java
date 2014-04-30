@@ -2,6 +2,7 @@ package com.google.bitcoin.tools;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.math.BigInteger;
 
 import com.google.bitcoin.core.Block;
 import com.google.bitcoin.core.ECKey;
@@ -13,10 +14,13 @@ import com.google.bitcoin.core.Transaction;
 import com.google.bitcoin.core.TransactionInput;
 import com.google.bitcoin.core.TransactionOutput;
 import com.google.bitcoin.core.Utils;
+import com.google.bitcoin.core.VerificationException;
 import com.google.bitcoin.core.Wallet;
 import com.google.bitcoin.params.MainNetParams;
 import com.google.bitcoin.script.Script;
 import com.google.bitcoin.script.ScriptOpCodes;
+import com.google.bitcoin.store.BlockStore;
+import com.google.bitcoin.store.BlockStoreException;
 import com.google.bitcoin.store.FullPrunedBlockStore;
 import com.google.bitcoin.store.H2FullPrunedBlockStore;
 
@@ -42,7 +46,7 @@ public class Miner {
 		FullPrunedBlockChain chain = new FullPrunedBlockChain(params, wallet, store);
 
         for (int i = 0; i < 55; i++) {
-    		mineForNetwork(params, wallet, chain);
+    		mineForNetwork(params, wallet, chain, store);
     		Thread.sleep(500);
 		}
 
@@ -50,7 +54,7 @@ public class Miner {
 		store.close();
     }
 	
-	public static void mineForNetwork(NetworkParameters params, Wallet wallet, FullPrunedBlockChain chain) throws Exception {
+	public static void mineForNetwork(NetworkParameters params, Wallet wallet, FullPrunedBlockChain chain, FullPrunedBlockStore store) throws Exception {
 		Transaction coinbaseTransaction = new Transaction(params);
     	String coibaseMessage = "Minining NimbleCoin" + System.currentTimeMillis();
     	char[] chars = coibaseMessage.toCharArray();
@@ -67,7 +71,7 @@ public class Miner {
         StoredBlock chainHead = chain.getChainHead();
         Sha256Hash prevBlockHash = chainHead.getHeader().getHash();        
         long time = System.currentTimeMillis() / 1000;
-        long difficultyTarget = getDifficultyTargetForNewBlock(chainHead);
+        long difficultyTarget = getDifficultyTargetForNewBlock(chainHead, store, params, time);
         
         Block newBlock = new Block(params, NetworkParameters.PROTOCOL_VERSION, prevBlockHash, time, difficultyTarget);
         newBlock.addTransaction(coinbaseTransaction);
@@ -78,8 +82,43 @@ public class Miner {
 		
 	}
 
-	private static long getDifficultyTargetForNewBlock(StoredBlock chainHead) {
-		return chainHead.getHeader().getDifficultyTarget();
+	private static long getDifficultyTargetForNewBlock(StoredBlock storedPrev, BlockStore blockStore, NetworkParameters params, long time) throws BlockStoreException {
+        if ((storedPrev.getHeight() + 1) % params.getInterval() != 0) {
+    		return storedPrev.getHeader().getDifficultyTarget();
+        }
+        StoredBlock ancestorBlock = storedPrev;
+        for (int i = 0; i < params.getInterval() - 1; i++) {
+            if (ancestorBlock == null) {
+                // This should never happen. If it does, it means we are following an incorrect or busted chain.
+                throw new VerificationException(
+                        "Difficulty transition point but we did not find a way back to the genesis block.");
+            }
+            ancestorBlock = blockStore.get(ancestorBlock.getHeader().getPrevBlockHash());
+        }
+        int timespan = (int) (storedPrev.getHeader().getTimeSeconds() - ancestorBlock.getHeader().getTimeSeconds());
+        // Limit the adjustment step.
+        final int targetTimespan = params.getTargetTimespan();
+        if (timespan < targetTimespan / 4)
+            timespan = targetTimespan / 4;
+        if (timespan > targetTimespan * 4)
+            timespan = targetTimespan * 4;
+
+        BigInteger newDifficulty = Utils.decodeCompactBits(storedPrev.getHeader().getDifficultyTarget());
+        newDifficulty = newDifficulty.multiply(BigInteger.valueOf(timespan));
+        newDifficulty = newDifficulty.divide(BigInteger.valueOf(targetTimespan));
+
+        if (newDifficulty.compareTo(params.getProofOfWorkLimit()) > 0) {
+            newDifficulty = params.getProofOfWorkLimit();
+        }
+
+        int accuracyBytes = (int) (nextBlock.getDifficultyTarget() >>> 24) - 3;
+        // The calculated difficulty is to a higher precision than received, so reduce here.
+        BigInteger mask = BigInteger.valueOf(0xFFFFFFL).shiftLeft(accuracyBytes * 8);
+        newDifficulty = newDifficulty.and(mask);
+
+        
+        return 0;
+        
 	}
 	
 }
