@@ -4,6 +4,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.math.BigInteger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.google.bitcoin.core.Block;
 import com.google.bitcoin.core.ECKey;
 import com.google.bitcoin.core.FullPrunedBlockChain;
@@ -30,6 +33,9 @@ import com.google.bitcoin.store.H2FullPrunedBlockStore;
  *
  */
 public class Miner {
+	
+    private static final Logger log = LoggerFactory.getLogger(Miner.class);
+	
 	public static void main(String[] args) throws Exception {
 		NetworkParameters params = MainNetParams.get();
 		String walletFileName = "main.miner.wallet";
@@ -45,7 +51,7 @@ public class Miner {
         FullPrunedBlockStore store = new H2FullPrunedBlockStore(params, new File(chainFileName).getAbsolutePath(), 5000);
 		FullPrunedBlockChain chain = new FullPrunedBlockChain(params, wallet, store);
 
-        for (int i = 0; i < 55; i++) {
+        for (int i = 0; i < 100; i++) {
     		mineForNetwork(params, wallet, chain, store);
     		Thread.sleep(500);
 		}
@@ -78,7 +84,7 @@ public class Miner {
         newBlock.solve();
         newBlock.verify();
         chain.add(newBlock);
-        System.out.println("block: " + newBlock);
+        log.info("Mined block: " + newBlock);
 		
 	}
 
@@ -96,6 +102,7 @@ public class Miner {
             ancestorBlock = blockStore.get(ancestorBlock.getHeader().getPrevBlockHash());
         }
         int timespan = (int) (storedPrev.getHeader().getTimeSeconds() - ancestorBlock.getHeader().getTimeSeconds());
+        log.debug("timespan: " + timespan);
         // Limit the adjustment step.
         final int targetTimespan = params.getTargetTimespan();
         if (timespan < targetTimespan / 4)
@@ -111,13 +118,18 @@ public class Miner {
             newDifficulty = params.getProofOfWorkLimit();
         }
 
+        
+        /*
         int accuracyBytes = (int) (nextBlock.getDifficultyTarget() >>> 24) - 3;
+        BigInteger receivedDifficulty = nextBlock.getDifficultyTargetAsInteger();
         // The calculated difficulty is to a higher precision than received, so reduce here.
         BigInteger mask = BigInteger.valueOf(0xFFFFFFL).shiftLeft(accuracyBytes * 8);
         newDifficulty = newDifficulty.and(mask);
+        */
 
-        
-        return 0;
+        long newDifficultyCompact = Utils.encodeCompactBits(newDifficulty);
+        log.debug("newDifficultyCompact: " + Long.toHexString(newDifficultyCompact));
+        return newDifficultyCompact;
         
 	}
 	
