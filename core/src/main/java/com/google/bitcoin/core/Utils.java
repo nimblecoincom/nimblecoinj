@@ -412,11 +412,13 @@ public class Utils {
             value = value.negate();
         byte[] array = value.toByteArray();
         int length = array.length;
+        /*
         if ((array[0] & 0x80) == 0x80)
             length++;
+        */    
         if (includeLength) {
             byte[] result = new byte[length + 4];
-            System.arraycopy(array, 0, result, length - array.length + 3, array.length);
+            System.arraycopy(array, 0, result, length - array.length + 4, array.length);
             uint32ToByteArrayBE(length, result, 0);
             if (isNegative)
                 result[4] |= 0x80;
@@ -446,6 +448,19 @@ public class Utils {
         return decodeMPI(bytes, true);
     }
 
+    // The representation of nBits uses another home-brew encoding, as a way to represent a large
+    // hash value in only 32 bits.
+    public static long encodeCompactBits(BigInteger input) {
+    	long compact = 0;
+    	byte[] mpiEncodedBytes = encodeMPI(input, true);
+    	long size = mpiEncodedBytes[3] & 0xFFl;
+    	compact |= ((size << 24)  & 0xFF000000l);
+        if (size >= 1) compact |= ((mpiEncodedBytes[4] << 16) & 0xFF0000l);
+        if (size >= 2) compact |= ((mpiEncodedBytes[5] << 8) & 0xFF00l);
+        if (size >= 3) compact |= ((mpiEncodedBytes[6] << 0) & 0xFFl);
+        return compact;
+    }
+    
     /**
      * If non-null, overrides the return value of now().
      */

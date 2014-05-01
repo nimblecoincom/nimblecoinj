@@ -124,4 +124,22 @@ public class UtilsTest {
         assertEquals(1, Utils.maxOfMostFreq(1, 1, 2, 2, 1));
         assertEquals(-1, Utils.maxOfMostFreq(-1, -1, 2, 2, -1));
     }
+
+    @Test
+    public void testMPI() throws Exception {
+    	byte[] mpi = {0, 0, 0, 29, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    	BigInteger value = Utils.decodeMPI(mpi, true);
+    	byte[] mpi2 = Utils.encodeMPI(value, true);
+        assertArrayEquals(mpi, mpi2);
+    }    
+
+    @Test
+    public void testCompactBits() throws Exception {
+    	long value = 0x1dffffffl;
+        assertEquals(value, Utils.encodeCompactBits(Utils.decodeCompactBits(value)));
+    	value = 0x1fffffffl;
+        assertEquals(value, Utils.encodeCompactBits(Utils.decodeCompactBits(value)));
+    	value = 0x8fffffffl;
+        assertEquals(value, Utils.encodeCompactBits(Utils.decodeCompactBits(value)));
+    }    
 }
