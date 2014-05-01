@@ -629,7 +629,7 @@ public class Block extends Message {
                     return;
                 // No, so increment the nonce and try again.
                 setNonce(getNonce() + 1);
-                if (getNonce() % 1000 == 0 ) {
+                if (getNonce() % 100000 == 0 ) {
                 	log.info("Solving block. Nonce: " + getNonce());
                 }
                 
