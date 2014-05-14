@@ -412,10 +412,8 @@ public class Utils {
             value = value.negate();
         byte[] array = value.toByteArray();
         int length = array.length;
-        /*
         if ((array[0] & 0x80) == 0x80)
             length++;
-        */    
         if (includeLength) {
             byte[] result = new byte[length + 4];
             System.arraycopy(array, 0, result, length - array.length + 4, array.length);

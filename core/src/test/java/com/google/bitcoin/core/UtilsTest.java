@@ -131,6 +131,17 @@ public class UtilsTest {
     	BigInteger value = Utils.decodeMPI(mpi, true);
     	byte[] mpi2 = Utils.encodeMPI(value, true);
         assertArrayEquals(mpi, mpi2);
+    	
+        value = BigInteger.valueOf(-1);
+    	mpi = Utils.encodeMPI(value, true);
+    	BigInteger value2 = Utils.decodeMPI(mpi, true);
+        assertEquals(value, value2);
+
+        value = BigInteger.valueOf(-128);
+    	mpi = Utils.encodeMPI(value, true);
+    	value2 = Utils.decodeMPI(mpi, true);
+        assertEquals(value, value2);
+
     }    
 
     @Test
