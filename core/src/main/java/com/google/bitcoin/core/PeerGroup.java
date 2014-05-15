@@ -17,8 +17,44 @@
 
 package com.google.bitcoin.core;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
+
+import java.math.BigInteger;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
+import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
+
+import javax.annotation.Nullable;
+
+import net.jcip.annotations.GuardedBy;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.google.bitcoin.net.ClientConnectionManager;
 import com.google.bitcoin.net.NioClientManager;
+import com.google.bitcoin.net.StreamParser;
+import com.google.bitcoin.net.StreamParserFactory;
 import com.google.bitcoin.net.discovery.PeerDiscovery;
 import com.google.bitcoin.net.discovery.PeerDiscoveryException;
 import com.google.bitcoin.script.Script;
@@ -30,21 +66,13 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
-import com.google.common.util.concurrent.*;
-import net.jcip.annotations.GuardedBy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.annotation.Nullable;
-import java.math.BigInteger;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.locks.ReentrantLock;
-
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
+import com.google.common.util.concurrent.AbstractExecutionThreadService;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.Service;
+import com.google.common.util.concurrent.SettableFuture;
+import com.google.common.util.concurrent.Uninterruptibles;
 
 /**
  * <p>Runs a set of connections to the P2P network, brings up connections to replace disconnected nodes and manages
@@ -253,6 +281,11 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 5000;
     private volatile int vConnectTimeoutMillis = DEFAULT_CONNECT_TIMEOUT_MILLIS;
 
+    //Whether to start a socket server accepting incoming connections
+    private boolean startServer = false;
+    //Port to start as a server if startServer==true
+    private int serverPort;
+
     /**
      * Creates a PeerGroup with the given parameters. No chain is provided so this node will report its chain height
      * as zero to other peers. This constructor is useful if you just want to explore the network but aren't interested
@@ -278,6 +311,22 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
      * connections and keep track of existing ones.
      */
     public PeerGroup(NetworkParameters params, @Nullable AbstractBlockChain chain, ClientConnectionManager connectionManager) {
+        this(params, chain, connectionManager, false);
+        
+    }
+    /**
+     * Creates a new PeerGroup allowing you to specify whether to start a server listening to client sockets
+     */
+    public PeerGroup(NetworkParameters params, @Nullable AbstractBlockChain chain, 
+                     ClientConnectionManager connectionManager, boolean startServer) {        
+        this(params, chain, connectionManager, startServer, params.getPort());
+    }
+
+    /**
+     * Creates a new PeerGroup allowing you to specify whether to start a server listening to client sockets
+     */
+    public PeerGroup(NetworkParameters params, @Nullable AbstractBlockChain chain, 
+                     ClientConnectionManager connectionManager, boolean startServer, int serverPort) {
         this.params = checkNotNull(params);
         this.chain = chain;
         this.fastCatchupTimeSecs = params.getGenesisBlock().getTimeSeconds();
@@ -313,6 +362,9 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         peerDiscoverers = new CopyOnWriteArraySet<PeerDiscovery>();
         peerEventListeners = new CopyOnWriteArrayList<ListenerRegistration<PeerEventListener>>();
         runningBroadcasts = Collections.synchronizedSet(new HashSet<TransactionBroadcast>());
+        this.startServer = startServer;
+        this.serverPort = serverPort;
+       
     }
 
     /**
@@ -699,6 +751,23 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         vPingTimer = new Timer("Peer pinging thread", true);
         channels.startAsync();
         channels.awaitRunning();
+        if (startServer) {
+            channels.acceptConnections(serverPort, new StreamParserFactory(){
+                @Override
+                public StreamParser getNewParser(InetAddress inetAddress, int port) {
+                    VersionMessage ver = getVersionMessage().duplicate();
+                    ver.bestHeight = chain == null ? 0 : chain.getBestChainHeight();
+                    ver.time = Utils.currentTimeSeconds();
+
+                    Peer peer = new Peer(params, ver, new PeerAddress(inetAddress, port), chain, memoryPool, downloadTxDependencies);
+                    peer.addEventListener(startupListener, Threading.SAME_THREAD);
+                    peer.setMinProtocolVersion(vMinRequiredProtocolVersion);
+                    pendingPeers.add(peer);
+                    peer.setSocketTimeout(vConnectTimeoutMillis);
+                    return peer;
+                }
+            });            
+        }
         triggerConnections();
     }
 

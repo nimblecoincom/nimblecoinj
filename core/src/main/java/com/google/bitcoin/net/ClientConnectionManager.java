@@ -16,9 +16,9 @@
 
 package com.google.bitcoin.net;
 
-import com.google.common.util.concurrent.Service;
-
 import java.net.SocketAddress;
+
+import com.google.common.util.concurrent.Service;
 
 /**
  * <p>A generic interface for an object which keeps track of a set of open client connections, creates new ones and
@@ -38,4 +38,9 @@ public interface ClientConnectionManager extends Service {
 
     /** Closes n peer connections */
     void closeConnections(int n);
+    
+    /**
+     * Start a server socket and accept incoming connections 
+     */
+    void acceptConnections(int serverPort, StreamParserFactory parserFactory);
 }

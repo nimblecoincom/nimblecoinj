@@ -16,17 +16,22 @@
 
 package com.google.bitcoin.net;
 
-import com.google.common.util.concurrent.AbstractIdleService;
+import static com.google.common.base.Preconditions.checkNotNull;
 
-import javax.net.SocketFactory;
 import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.SocketAddress;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
-import static com.google.common.base.Preconditions.checkNotNull;
+import javax.net.SocketFactory;
+
+import org.slf4j.LoggerFactory;
+
+import com.google.common.util.concurrent.AbstractIdleService;
 
 /**
  * <p>A thin wrapper around a set of {@link BlockingClient}s.</p>
@@ -36,6 +41,9 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * some other network settings that cannot be set using NIO.</p>
  */
 public class BlockingClientManager extends AbstractIdleService implements ClientConnectionManager {
+    
+    private static final org.slf4j.Logger log = LoggerFactory.getLogger(BlockingClientManager.class);
+
     private final SocketFactory socketFactory;
     private final Set<BlockingClient> clients = Collections.synchronizedSet(new HashSet<BlockingClient>());
 
@@ -94,5 +102,38 @@ public class BlockingClientManager extends AbstractIdleService implements Client
             while (n-- > 0 && it.hasNext())
                 it.next().closeConnection();
         }
+    }
+
+    @Override
+    public void acceptConnections(int serverPort, final StreamParserFactory parserFactory) {        
+        if (!isRunning())
+            throw new IllegalStateException();
+        try {
+            final ServerSocket serverSocket = new ServerSocket(serverPort);
+            Thread t = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        Socket socket = serverSocket.accept();
+                        new BlockingClient(socket, parserFactory, clients);                        
+                    } catch (Exception e) {
+                      log.error("Error trying to accept new connection from server socket: " + serverSocket, e);
+                    } finally {
+                        try {
+                            serverSocket.close();
+                        } catch (IOException e1) {
+                            // At this point there isn't much we can do, and we can probably assume the channel is closed
+                        }
+                    }
+                }
+            };
+            t.setName("BlockingClientManager server socket thread");
+            t.setDaemon(true);
+            t.start();            
+        } catch (IOException e) {
+            throw new RuntimeException(e); // This should only happen if we are, eg, out of system resources
+        }
+
+        
     }
 }

@@ -16,10 +16,8 @@
 
 package com.google.bitcoin.net;
 
-import org.slf4j.LoggerFactory;
+import static com.google.common.base.Preconditions.checkState;
 
-import javax.annotation.Nullable;
-import javax.net.SocketFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -28,7 +26,10 @@ import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.util.Set;
 
-import static com.google.common.base.Preconditions.checkState;
+import javax.annotation.Nullable;
+import javax.net.SocketFactory;
+
+import org.slf4j.LoggerFactory;
 
 /**
  * <p>Creates a simple connection to a server using a {@link StreamParser} to process data.</p>
@@ -43,7 +44,7 @@ public class BlockingClient implements MessageWriteTarget {
     private static final int BUFFER_SIZE_LOWER_BOUND = 4096;
     private static final int BUFFER_SIZE_UPPER_BOUND = 65536;
 
-    private final ByteBuffer dbuf;
+    private ByteBuffer dbuf;
     private Socket socket;
     private volatile boolean vCloseRequested = false;
 
@@ -61,59 +62,92 @@ public class BlockingClient implements MessageWriteTarget {
      */
     public BlockingClient(final SocketAddress serverAddress, final StreamParser parser,
                           final int connectTimeoutMillis, final SocketFactory socketFactory, @Nullable final Set<BlockingClient> clientSet) throws IOException {
+        init(parser);
+        socket = socketFactory.createSocket();
+        Thread t = new SocketThread(clientSet, false, socket.getRemoteSocketAddress(), connectTimeoutMillis, parser);
+        t.start();
+    }
+
+    public BlockingClient(Socket _socket, StreamParserFactory parserFactory, final Set<BlockingClient> clientSet) {
+        final StreamParser parser = parserFactory.getNewParser(socket.getInetAddress(), socket.getPort());
+        init(parser);
+        socket = _socket;
+        Thread t = new SocketThread(clientSet, true, socket.getRemoteSocketAddress(), 0, parser);
+        t.start();
+    }
+
+    private void init(final StreamParser parser) {
         // Try to fit at least one message in the network buffer, but place an upper and lower limit on its size to make
         // sure it doesnt get too large or have to call read too often.
         dbuf = ByteBuffer.allocateDirect(Math.min(Math.max(parser.getMaxMessageSize(), BUFFER_SIZE_LOWER_BOUND), BUFFER_SIZE_UPPER_BOUND));
         parser.setWriteTarget(this);
-        socket = socketFactory.createSocket();
-        Thread t = new Thread() {
-            @Override
-            public void run() {
-                if (clientSet != null)
-                    clientSet.add(BlockingClient.this);
-                try {
-                    socket.connect(serverAddress, connectTimeoutMillis);
-                    parser.connectionOpened();
-                    InputStream stream = socket.getInputStream();
-                    byte[] readBuff = new byte[dbuf.capacity()];
-
-                    while (true) {
-                        // TODO Kill the message duplication here
-                        checkState(dbuf.remaining() > 0 && dbuf.remaining() <= readBuff.length);
-                        int read = stream.read(readBuff, 0, Math.max(1, Math.min(dbuf.remaining(), stream.available())));
-                        if (read == -1)
-                            return;
-                        dbuf.put(readBuff, 0, read);
-                        // "flip" the buffer - setting the limit to the current position and setting position to 0
-                        dbuf.flip();
-                        // Use parser.receiveBytes's return value as a double-check that it stopped reading at the right
-                        // location
-                        int bytesConsumed = parser.receiveBytes(dbuf);
-                        checkState(dbuf.position() == bytesConsumed);
-                        // Now drop the bytes which were read by compacting dbuf (resetting limit and keeping relative
-                        // position)
-                        dbuf.compact();
-                    }
-                } catch (Exception e) {
-                    if (!vCloseRequested)
-                        log.error("Error trying to open/read from connection: " + serverAddress, e);
-                } finally {
-                    try {
-                        socket.close();
-                    } catch (IOException e1) {
-                        // At this point there isn't much we can do, and we can probably assume the channel is closed
-                    }
-                    if (clientSet != null)
-                        clientSet.remove(BlockingClient.this);
-                    parser.connectionClosed();
-                }
-            }
-        };
-        t.setName("BlockingClient network thread for " + serverAddress);
-        t.setDaemon(true);
-        t.start();
     }
+    
+    private class SocketThread extends Thread {
+        public SocketThread(Set<BlockingClient> clientSet, boolean connected,
+                SocketAddress serverAddress, int connectTimeoutMillis,
+                StreamParser parser) {
+            super();
+            this.clientSet = clientSet;
+            this.connected = connected;
+            this.serverAddress = serverAddress;
+            this.connectTimeoutMillis = connectTimeoutMillis;
+            this.parser = parser;
+            this.setName("BlockingClient network thread for " + serverAddress);
+            this.setDaemon(true);
+            
+        }
+        Set<BlockingClient> clientSet;
+        boolean connected;
+        SocketAddress serverAddress;
+        int connectTimeoutMillis;
+        StreamParser parser;
+        @Override
+        public void run() {
+            if (clientSet != null)
+                clientSet.add(BlockingClient.this);
+            try {
+                if (!connected) {
+                    socket.connect(serverAddress, connectTimeoutMillis);                    
+                }
+                parser.connectionOpened();
+                InputStream stream = socket.getInputStream();
+                byte[] readBuff = new byte[dbuf.capacity()];
 
+                while (true) {
+                    // TODO Kill the message duplication here
+                    checkState(dbuf.remaining() > 0 && dbuf.remaining() <= readBuff.length);
+                    int read = stream.read(readBuff, 0, Math.max(1, Math.min(dbuf.remaining(), stream.available())));
+                    if (read == -1)
+                        return;
+                    dbuf.put(readBuff, 0, read);
+                    // "flip" the buffer - setting the limit to the current position and setting position to 0
+                    dbuf.flip();
+                    // Use parser.receiveBytes's return value as a double-check that it stopped reading at the right
+                    // location
+                    int bytesConsumed = parser.receiveBytes(dbuf);
+                    checkState(dbuf.position() == bytesConsumed);
+                    // Now drop the bytes which were read by compacting dbuf (resetting limit and keeping relative
+                    // position)
+                    dbuf.compact();
+                }
+            } catch (Exception e) {
+                if (!vCloseRequested)
+                    log.error("Error trying to open/read from connection: " + serverAddress, e);
+            } finally {
+                try {
+                    socket.close();
+                } catch (IOException e1) {
+                    // At this point there isn't much we can do, and we can probably assume the channel is closed
+                }
+                if (clientSet != null)
+                    clientSet.remove(BlockingClient.this);
+                parser.connectionClosed();
+            }
+        }
+    };
+    
+    
     /**
      * Closes the connection to the server, triggering the {@link StreamParser#connectionClosed()}
      * event on the network-handling thread where all callbacks occur.

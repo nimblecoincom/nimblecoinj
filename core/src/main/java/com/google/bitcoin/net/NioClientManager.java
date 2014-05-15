@@ -16,16 +16,24 @@
 
 package com.google.bitcoin.net;
 
-import com.google.common.base.Throwables;
-import com.google.common.util.concurrent.AbstractExecutionThreadService;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.net.SocketAddress;
-import java.nio.channels.*;
+import java.nio.channels.ClosedChannelException;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
+
+import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Throwables;
+import com.google.common.util.concurrent.AbstractExecutionThreadService;
 
 /**
  * A class which manages a set of client connections. Uses Java NIO to select network events and processes them in a
@@ -170,4 +178,10 @@ public class NioClientManager extends AbstractExecutionThreadService implements 
                 handler.closeConnection(); // Removes handler from connectedHandlers before returning
         }
     }
+
+	@Override
+	public void acceptConnections(int serverPort, StreamParserFactory parserFactory) {
+		throw new UnsupportedOperationException("Not implemented yet");
+		
+	}
 }
