@@ -46,9 +46,11 @@ public class BlockingClientManager extends AbstractIdleService implements Client
 
     private final SocketFactory socketFactory;
     private final Set<BlockingClient> clients = Collections.synchronizedSet(new HashSet<BlockingClient>());
-
     private int connectTimeoutMillis = 1000;
+    private ServerSocket serverSocket;
+    private volatile boolean vServerCloseRequested = false;
 
+    
     public BlockingClientManager() {
         socketFactory = SocketFactory.getDefault();
     }
@@ -86,6 +88,10 @@ public class BlockingClientManager extends AbstractIdleService implements Client
             for (BlockingClient client : clients)
                 client.closeConnection();
         }
+        if (serverSocket!=null) {
+            vServerCloseRequested = true;
+            serverSocket.close();            
+        }
     }
 
     @Override
@@ -109,15 +115,18 @@ public class BlockingClientManager extends AbstractIdleService implements Client
         if (!isRunning())
             throw new IllegalStateException();
         try {
-            final ServerSocket serverSocket = new ServerSocket(serverPort);
+            serverSocket = new ServerSocket(serverPort);
             Thread t = new Thread() {
                 @Override
                 public void run() {
                     try {
-                        Socket socket = serverSocket.accept();
-                        new BlockingClient(socket, parserFactory, clients);                        
+                        while (true) {
+                            Socket socket = serverSocket.accept();
+                            new BlockingClient(socket, parserFactory, clients);                            
+                        }
                     } catch (Exception e) {
-                      log.error("Error trying to accept new connection from server socket: " + serverSocket, e);
+                        if (!vServerCloseRequested)
+                            log.error("Error trying to accept new connection from server socket: " + serverSocket, e);
                     } finally {
                         try {
                             serverSocket.close();

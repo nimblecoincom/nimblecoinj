@@ -16,24 +16,39 @@
 
 package com.google.bitcoin.params;
 
-import com.google.bitcoin.core.Block;
+import static com.google.common.base.Preconditions.checkState;
 
 import java.math.BigInteger;
 
-import static com.google.common.base.Preconditions.checkState;
+import com.google.bitcoin.core.NetworkParameters;
+import com.google.bitcoin.core.Utils;
 
 /**
  * Network parameters for the regression test mode of bitcoind in which all blocks are trivially solvable.
  */
-public class RegTestParams extends TestNet2Params {
+public class RegTestParams extends NetworkParameters {
     private static final BigInteger PROOF_OF_WORK_LIMIT = new BigInteger("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16);
 
     public RegTestParams() {
         super();
-        interval = 10000;
-        proofOfWorkLimit = PROOF_OF_WORK_LIMIT;
-        subsidyDecreaseBlockCount = 150;
+        id = ID_REGTEST;
+        packetMagic = 0xfabfb5daL;
         port = 18555;
+        addressHeader = 111;
+        p2shHeader = 196;
+        acceptableAddressCodes = new int[] { addressHeader, p2shHeader };
+        interval = INTERVAL;
+        targetTimespan = TARGET_TIMESPAN;
+        proofOfWorkLimit = Utils.decodeCompactBits(0x1f00ffffL);
+        dumpedPrivateKeyHeader = 239;
+        genesisBlock.setTime(1398701303L);
+        genesisBlock.setDifficultyTarget(0x1f00ffffL);
+        genesisBlock.setNonce(61715);
+        spendableCoinbaseDepth = 100;
+        subsidyDecreaseBlockCount = 210000;
+        String genesisHash = genesisBlock.getHashAsString();
+        checkState(genesisHash.equals("0000ea3f810a0dd1226a2a6ac69539e53b81e85d91f6c58e051b6ee02abe2e95"));
+        dnsSeeds = null;
     }
 
     @Override
@@ -41,21 +56,6 @@ public class RegTestParams extends TestNet2Params {
         return true;
     }
 
-    private static Block genesis;
-
-    @Override
-    public Block getGenesisBlock() {
-        synchronized (RegTestParams.class) {
-            if (genesis == null) {
-                genesis = super.getGenesisBlock();
-                genesis.setNonce(2);
-                genesis.setDifficultyTarget(0x207fFFFFL);
-                genesis.setTime(1296688602L);
-                checkState(genesis.getHashAsString().toLowerCase().equals("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"));
-            }
-            return genesis;
-        }
-    }
 
     private static RegTestParams instance;
     public static synchronized RegTestParams get() {

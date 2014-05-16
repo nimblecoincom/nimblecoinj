@@ -19,6 +19,7 @@ package com.google.bitcoin.tools;
 
 import com.google.bitcoin.core.*;
 import com.google.bitcoin.crypto.KeyCrypterException;
+import com.google.bitcoin.net.BlockingClientManager;
 import com.google.bitcoin.net.discovery.DnsDiscovery;
 import com.google.bitcoin.net.discovery.PeerDiscovery;
 import com.google.bitcoin.params.MainNetParams;
@@ -34,10 +35,12 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.io.Resources;
 import com.google.common.util.concurrent.ListenableFuture;
+
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.util.DateConverter;
+
 import org.bitcoinj.wallet.Protos;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,7 +78,7 @@ public class WalletTool {
     private static AbstractBlockChain chain;
     private static PeerGroup peers;
     private static Wallet wallet;
-    private static File chainFileName;
+    private static File chainBaseFile;
     private static PeerDiscovery discovery;
     private static ValidationMode mode;
     private static String password;
@@ -209,6 +212,8 @@ public class WalletTool {
         OptionSpec<String> passwordFlag = parser.accepts("password").withRequiredArg();
         OptionSpec<String> paymentRequestLocation = parser.accepts("payment-request").withRequiredArg();
         parser.accepts("no-pki");
+        parser.accepts("server");
+        parser.accepts("server-port").withRequiredArg();
         options = parser.parse(args);
 
         final String HELP_TEXT = Resources.toString(WalletTool.class.getResource("wallet-tool-help.txt"), Charsets.UTF_8);
@@ -239,15 +244,15 @@ public class WalletTool {
         switch (netFlag.value(options)) {
             case PROD:
                 params = MainNetParams.get();
-                chainFileName = new File("prodnet.chain");
+                chainBaseFile = new File("prodnet.chain");
                 break;
             case TEST:
                 params = TestNet3Params.get();
-                chainFileName = new File("testnet.chain");
+                chainBaseFile = new File("testnet.chain");
                 break;
             case REGTEST:
                 params = RegTestParams.get();
-                chainFileName = new File("regtest.chain");
+                chainBaseFile = new File("regtest.chain");
                 break;
             default:
                 throw new RuntimeException("Unreachable.");
@@ -256,7 +261,7 @@ public class WalletTool {
 
         // Allow the user to override the name of the chain used.
         if (options.has(chainFlag)) {
-            chainFileName = new File(chainFlag.value(options));
+            chainBaseFile = new File(chainFlag.value(options));
         }
 
         if (options.has("condition")) {
@@ -673,22 +678,29 @@ public class WalletTool {
     private static void setup() throws BlockStoreException {
         if (store != null) return;  // Already done.
         // Will create a fresh chain if one doesn't exist or there is an issue with this one.
-        if (!chainFileName.exists() && wallet.getTransactions(true).size() > 0) {
+        if (!getChainFile().exists() && wallet.getTransactions(true).size() > 0) {
             // No chain, so reset the wallet as we will be downloading from scratch.
             System.out.println("Chain file is missing so clearing transactions from the wallet.");
             reset();
         }
         if (mode == ValidationMode.SPV) {
-            store = new SPVBlockStore(params, chainFileName);
+            store = new SPVBlockStore(params, chainBaseFile);
             chain = new BlockChain(params, wallet, store);
         } else if (mode == ValidationMode.FULL) {
-            FullPrunedBlockStore s = new H2FullPrunedBlockStore(params, chainFileName.getAbsolutePath(), 5000);
+            FullPrunedBlockStore s = new H2FullPrunedBlockStore(params, chainBaseFile.getAbsolutePath(), 5000);
             store = s;
             chain = new FullPrunedBlockChain(params, wallet, s);
         }
         // This will ensure the wallet is saved when it changes.
         wallet.autosaveToFile(walletFile, 200, TimeUnit.MILLISECONDS, null);
-        peers = new PeerGroup(params, chain);
+        if (!options.has("--server")) {
+            peers = new PeerGroup(params, chain);    
+        } else if (!options.has("--server-port")) {
+            peers = new PeerGroup(params, chain, new BlockingClientManager(), true);                
+        } else {
+            int serverPort = Integer.valueOf((String) options.valueOf("server-port"));
+            peers = new PeerGroup(params, chain, new BlockingClientManager(), true, serverPort);                
+        }
         peers.setUserAgent("WalletTool", "1.0");
         peers.addWallet(wallet);
         if (options.has("peers")) {
@@ -696,7 +708,10 @@ public class WalletTool {
             String[] peerAddrs = peersFlag.split(",");
             for (String peer : peerAddrs) {
                 try {
-                    peers.addAddress(new PeerAddress(InetAddress.getByName(peer), params.getPort()));
+                    String[] peerHostAndPort = peersFlag.split(":");
+                    String host = peerHostAndPort[0];
+                    int port = peerHostAndPort.length>1 ? Integer.valueOf(peerHostAndPort[0]) : params.getPort();
+                    peers.addAddress(new PeerAddress(InetAddress.getByName(host), port));
                 } catch (UnknownHostException e) {
                     System.err.println("Could not understand peer domain name/IP address: " + peer + ": " + e.getMessage());
                     System.exit(1);
@@ -731,7 +746,7 @@ public class WalletTool {
                 System.out.println("Synced " + (endTransactions - startTransactions) + " transactions.");
             }
         } catch (BlockStoreException e) {
-            System.err.println("Error reading block chain file " + chainFileName + ": " + e.getMessage());
+            System.err.println("Error reading block chain file " + chainBaseFile + ": " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -868,8 +883,12 @@ public class WalletTool {
     private static void dumpWallet() throws BlockStoreException {
         // Setup to get the chain height so we can estimate lock times, but don't wipe the transactions if it's not
         // there just for the dump case.
-        if (chainFileName.exists())
+        if (getChainFile().exists())
             setup();
         System.out.println(wallet.toString(true, true, true, chain));
+    }
+    
+    private static File getChainFile() {
+        return new File(chainBaseFile.getAbsolutePath() + ".h2.db");
     }
 }

@@ -16,26 +16,31 @@
 
 package com.google.bitcoin.core;
 
+import static com.google.bitcoin.testing.FakeTxBuilder.createFakeBlock;
+import static com.google.bitcoin.testing.FakeTxBuilder.createFakeTx;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.math.BigInteger;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import com.google.bitcoin.core.Wallet.BalanceType;
 import com.google.bitcoin.params.MainNetParams;
-import com.google.bitcoin.params.TestNet2Params;
+import com.google.bitcoin.params.TestNet3Params;
 import com.google.bitcoin.params.UnitTestParams;
 import com.google.bitcoin.store.BlockStore;
 import com.google.bitcoin.store.MemoryBlockStore;
 import com.google.bitcoin.testing.FakeTxBuilder;
 import com.google.bitcoin.utils.BriefLogFormatter;
 import com.google.common.util.concurrent.ListenableFuture;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import java.math.BigInteger;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-
-import static com.google.bitcoin.testing.FakeTxBuilder.createFakeBlock;
-import static com.google.bitcoin.testing.FakeTxBuilder.createFakeTx;
-import static org.junit.Assert.*;
 
 // Handling of chain splits/reorgs are in ChainSplitTests.
 
@@ -50,7 +55,7 @@ public class BlockChainTest {
     private final StoredBlock[] block = new StoredBlock[1];
     private Transaction coinbaseTransaction;
 
-    private static class TweakableTestNet2Params extends TestNet2Params {
+    private static class TweakableTestNet2Params extends TestNet3Params {
         public void setProofOfWorkLimit(BigInteger limit) {
             proofOfWorkLimit = limit;
         }

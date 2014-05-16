@@ -16,11 +16,9 @@
 
 package com.google.bitcoin.core;
 
-import com.google.bitcoin.params.TestNet2Params;
-import com.google.bitcoin.params.UnitTestParams;
-import com.google.bitcoin.script.ScriptOpCodes;
-import org.junit.Test;
-import org.spongycastle.util.encoders.Hex;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -29,10 +27,15 @@ import java.io.ObjectOutputStream;
 import java.math.BigInteger;
 import java.util.Arrays;
 
-import static org.junit.Assert.*;
+import org.junit.Test;
+import org.spongycastle.util.encoders.Hex;
+
+import com.google.bitcoin.params.TestNet3Params;
+import com.google.bitcoin.params.UnitTestParams;
+import com.google.bitcoin.script.ScriptOpCodes;
 
 public class BlockTest {
-    static final NetworkParameters params = TestNet2Params.get();
+    static final NetworkParameters params = TestNet3Params.get();
 
     public static final byte[] blockBytes;
 
