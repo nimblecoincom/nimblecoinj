@@ -111,7 +111,7 @@ public class BlockingClientManager extends AbstractIdleService implements Client
     }
 
     @Override
-    public void acceptConnections(int serverPort, final StreamParserFactory parserFactory) {        
+    public void acceptConnections(final int serverPort, final StreamParserFactory parserFactory) {        
         if (!isRunning())
             throw new IllegalStateException();
         try {
@@ -120,8 +120,10 @@ public class BlockingClientManager extends AbstractIdleService implements Client
                 @Override
                 public void run() {
                     try {
-                        while (true) {
+                        log.info("Starting to accept connections on port " + serverPort);
+                        while (true) {                            
                             Socket socket = serverSocket.accept();
+                            log.info("Accepted connection " + socket);
                             new BlockingClient(socket, parserFactory, clients);                            
                         }
                     } catch (Exception e) {

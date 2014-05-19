@@ -64,12 +64,12 @@ public class BlockingClient implements MessageWriteTarget {
                           final int connectTimeoutMillis, final SocketFactory socketFactory, @Nullable final Set<BlockingClient> clientSet) throws IOException {
         init(parser);
         socket = socketFactory.createSocket();
-        Thread t = new SocketThread(clientSet, false, socket.getRemoteSocketAddress(), connectTimeoutMillis, parser);
+        Thread t = new SocketThread(clientSet, false, serverAddress, connectTimeoutMillis, parser);
         t.start();
     }
 
     public BlockingClient(Socket _socket, StreamParserFactory parserFactory, final Set<BlockingClient> clientSet) {
-        final StreamParser parser = parserFactory.getNewParser(socket.getInetAddress(), socket.getPort());
+        final StreamParser parser = parserFactory.getNewParser(_socket.getInetAddress(), _socket.getPort());
         init(parser);
         socket = _socket;
         Thread t = new SocketThread(clientSet, true, socket.getRemoteSocketAddress(), 0, parser);
@@ -93,7 +93,7 @@ public class BlockingClient implements MessageWriteTarget {
             this.serverAddress = serverAddress;
             this.connectTimeoutMillis = connectTimeoutMillis;
             this.parser = parser;
-            this.setName("BlockingClient network thread for " + serverAddress);
+            this.setName("BlockingClient network thread for " + (connected ? "incoming" : "outgoing") + " " + serverAddress);
             this.setDaemon(true);
             
         }

@@ -693,9 +693,9 @@ public class WalletTool {
         }
         // This will ensure the wallet is saved when it changes.
         wallet.autosaveToFile(walletFile, 200, TimeUnit.MILLISECONDS, null);
-        if (!options.has("--server")) {
-            peers = new PeerGroup(params, chain);    
-        } else if (!options.has("--server-port")) {
+        if (!options.has("server")) {
+            peers = new PeerGroup(params, chain, new BlockingClientManager());    
+        } else if (!options.has("server-port")) {
             peers = new PeerGroup(params, chain, new BlockingClientManager(), true);                
         } else {
             int serverPort = Integer.valueOf((String) options.valueOf("server-port"));
@@ -719,8 +719,10 @@ public class WalletTool {
             }
         } else {
             if (params == RegTestParams.get()) {
-                log.info("Assuming regtest node on localhost");
-                peers.addAddress(PeerAddress.localhost(params));
+                if (!options.has("server")) {
+                    log.info("Assuming regtest node on localhost");
+                    peers.addAddress(PeerAddress.localhost(params));                    
+                }                
             } else {
                 peers.addPeerDiscovery(new DnsDiscovery(params));
             }

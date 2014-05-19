@@ -278,7 +278,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     private int lastBloomFilterElementCount;
 
     /** The default timeout between when a connection attempt begins and version message exchange completes */
-    public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 5000;
+    public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 500000;
     private volatile int vConnectTimeoutMillis = DEFAULT_CONNECT_TIMEOUT_MILLIS;
 
     //Whether to start a socket server accepting incoming connections
@@ -340,7 +340,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
 
         int height = chain == null ? 0 : chain.getBestChainHeight();
         // We never request that the remote node wait for a bloom filter yet, as we have no wallets
-        this.versionMessage = new VersionMessage(params, height, true);
+        this.versionMessage = new VersionMessage(params, height, true, chain.shouldVerifyTransactions());
         this.downloadTxDependencies = true;
 
         memoryPool = new MemoryPool();
@@ -504,7 +504,8 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     public void setUserAgent(String name, String version, @Nullable String comments) {
         //TODO Check that height is needed here (it wasnt, but it should be, no?)
         int height = chain == null ? 0 : chain.getBestChainHeight();
-        VersionMessage ver = new VersionMessage(params, height, false);
+        boolean shouldVerifyTransactions = chain == null ? false : chain.shouldVerifyTransactions();        
+        VersionMessage ver = new VersionMessage(params, height, false, shouldVerifyTransactions);
         updateVersionMessageRelayTxesBeforeFilter(ver);
         ver.appendToSubVer(name, version, comments);
         setVersionMessage(ver);
@@ -759,7 +760,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
                     ver.bestHeight = chain == null ? 0 : chain.getBestChainHeight();
                     ver.time = Utils.currentTimeSeconds();
 
-                    Peer peer = new Peer(params, ver, new PeerAddress(inetAddress, port), chain, memoryPool, downloadTxDependencies);
+                    Peer peer = new Peer(params, ver, new PeerAddress(inetAddress, port), chain, memoryPool, downloadTxDependencies, true);
                     peer.addEventListener(startupListener, Threading.SAME_THREAD);
                     peer.setMinProtocolVersion(vMinRequiredProtocolVersion);
                     pendingPeers.add(peer);
@@ -1061,8 +1062,10 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         int newSize = -1;
         lock.lock();
         try {
-            groupBackoff.trackSuccess();
-            backoffMap.get(peer.getAddress()).trackSuccess();
+            if (!peer.getInitiatedByPeer()) {
+                groupBackoff.trackSuccess();
+                backoffMap.get(peer.getAddress()).trackSuccess();                
+            }
 
             // Sets up the newly connected peer so it can do everything it needs to.
             log.info("{}: New peer", peer);

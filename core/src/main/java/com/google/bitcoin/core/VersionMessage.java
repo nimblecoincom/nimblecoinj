@@ -88,13 +88,13 @@ public class VersionMessage extends Message {
     
     /** Equivalent to VersionMessage(params, newBestHeight, true) */
     public VersionMessage(NetworkParameters params, int newBestHeight) {
-        this(params, newBestHeight, true);
+        this(params, newBestHeight, true, false);
     }
 
-    public VersionMessage(NetworkParameters params, int newBestHeight, boolean relayTxesBeforeFilter) {
+    public VersionMessage(NetworkParameters params, int newBestHeight, boolean relayTxesBeforeFilter, boolean hasACopyOfTheBlockChain ) {
         super(params);
         clientVersion = NetworkParameters.PROTOCOL_VERSION;
-        localServices = 0;
+        localServices = hasACopyOfTheBlockChain ? 1 : 0;
         time = System.currentTimeMillis() / 1000;
         // Note that the official client doesn't do anything with these, and finding out your own external IP address
         // is kind of tricky anyway, so we just put nonsense here for now.
@@ -250,7 +250,7 @@ public class VersionMessage extends Message {
     }
 
     public VersionMessage duplicate() {
-        VersionMessage v = new VersionMessage(params, (int) bestHeight, relayTxesBeforeFilter);
+        VersionMessage v = new VersionMessage(params, (int) bestHeight, relayTxesBeforeFilter, hasBlockChain());
         v.clientVersion = clientVersion;
         v.localServices = localServices;
         v.time = time;

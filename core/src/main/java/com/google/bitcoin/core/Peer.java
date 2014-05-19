@@ -143,6 +143,9 @@ public class Peer extends PeerSocketHandler {
 
     // A settable future which completes (with this) when the connection is open
     private final SettableFuture<Peer> connectionOpenFuture = SettableFuture.create();
+    
+    // True if we tried to connect to this peer. False if this peer tried to connect to us. 
+    private boolean initiatedByPeer = false;
 
     /**
      * <p>Construct a peer that reads/writes from the given block chain.</p>
@@ -179,6 +182,26 @@ public class Peer extends PeerSocketHandler {
         this(params, ver, remoteAddress, chain, mempool, true);
     }
 
+    /**
+     * <p>Construct a peer that reads/writes from the given block chain and memory pool. Transactions stored in a memory
+     * pool will have their confidence levels updated when a peer announces it, to reflect the greater likelyhood that
+     * the transaction is valid.</p>
+     *
+     * <p>Note that this does <b>NOT</b> make a connection to the given remoteAddress, it only creates a handler for a
+     * connection. If you want to create a one-off connection, create a Peer and pass it to
+     * {@link com.google.bitcoin.net.NioClientManager#openConnection(java.net.SocketAddress, com.google.bitcoin.net.StreamParser)}
+     * or
+     * {@link com.google.bitcoin.net.NioClient#NioClient(java.net.SocketAddress, com.google.bitcoin.net.StreamParser, int)}.</p>
+     *
+     * <p>The remoteAddress provided should match the remote address of the peer which is being connected to, and is
+     * used to keep track of which peers relayed transactions and offer more descriptive logging.</p>
+     */
+    public Peer(NetworkParameters params, VersionMessage ver, PeerAddress remoteAddress,
+                @Nullable AbstractBlockChain chain, @Nullable MemoryPool mempool, boolean downloadTxDependencies) {
+        this(params, ver, remoteAddress, chain, mempool, downloadTxDependencies, false);
+    }
+    
+    
    /**
      * <p>Construct a peer that reads/writes from the given block chain and memory pool. Transactions stored in a memory
      * pool will have their confidence levels updated when a peer announces it, to reflect the greater likelyhood that
@@ -194,7 +217,8 @@ public class Peer extends PeerSocketHandler {
      * used to keep track of which peers relayed transactions and offer more descriptive logging.</p>
      */
     public Peer(NetworkParameters params, VersionMessage ver, PeerAddress remoteAddress,
-				@Nullable AbstractBlockChain chain, @Nullable MemoryPool mempool, boolean downloadTxDependencies) {
+				@Nullable AbstractBlockChain chain, @Nullable MemoryPool mempool, boolean downloadTxDependencies, 
+				boolean initiatedByPeer) {
         super(params, remoteAddress);
         this.params = Preconditions.checkNotNull(params);
         this.versionMessage = Preconditions.checkNotNull(ver);
@@ -208,6 +232,7 @@ public class Peer extends PeerSocketHandler {
         this.pendingPings = new CopyOnWriteArrayList<PendingPing>();
         this.wallets = new CopyOnWriteArrayList<Wallet>();
         this.memoryPool = mempool;
+        this.initiatedByPeer = initiatedByPeer;
     }
 
     /**
@@ -225,7 +250,7 @@ public class Peer extends PeerSocketHandler {
      * used to keep track of which peers relayed transactions and offer more descriptive logging.</p>
      */
     public Peer(NetworkParameters params, AbstractBlockChain blockChain, PeerAddress peerAddress, String thisSoftwareName, String thisSoftwareVersion) {
-        this(params, new VersionMessage(params, blockChain.getBestChainHeight(), true), blockChain, peerAddress);
+        this(params, new VersionMessage(params, blockChain.getBestChainHeight(), true, blockChain.shouldVerifyTransactions()), blockChain, peerAddress);
         this.versionMessage.appendToSubVer(thisSoftwareName, thisSoftwareVersion, null);
     }
 
@@ -407,7 +432,8 @@ public class Peer extends PeerSocketHandler {
         if (!vPeerVersionMessage.hasBlockChain() ||
                 (!params.allowEmptyPeerChain() && vPeerVersionMessage.bestHeight <= 0)) {
             // Shut down the channel
-            throw new ProtocolException("Peer does not have a copy of the block chain.");
+            log.info("Peer does not have a copy of the block chain.");
+            //throw new ProtocolException("Peer does not have a copy of the block chain.");
         }
     }
 
@@ -1490,4 +1516,13 @@ public class Peer extends PeerSocketHandler {
     public BloomFilter getBloomFilter() {
         return vBloomFilter;
     }
+    
+    /**
+     * True if we tried to connect to this peer. False if this peer tried to connect to us. 
+     */
+    public boolean getInitiatedByPeer() {
+        return initiatedByPeer;
+    }
+    
+    
 }
