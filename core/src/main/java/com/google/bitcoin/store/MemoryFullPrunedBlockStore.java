@@ -19,9 +19,12 @@ package com.google.bitcoin.store;
 import com.google.bitcoin.core.*;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import javax.annotation.Nullable;
+
 import java.io.Serializable;
 import java.util.*;
 
@@ -281,6 +284,12 @@ public class MemoryFullPrunedBlockStore implements FullPrunedBlockStore {
         StoredBlockAndWasUndoableFlag storedBlock = blockMap.get(hash);
         return storedBlock == null ? null : storedBlock.block;
     }
+    
+    @Override
+    public StoredBlock getNext(StoredBlock block) throws BlockStoreException {
+        throw new UnsupportedOperationException("Not implemented yet");
+    }    
+    
     
     @Nullable
     public synchronized StoredBlock getOnceUndoableStoredBlock(Sha256Hash hash) throws BlockStoreException {

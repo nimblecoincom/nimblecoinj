@@ -17,11 +17,15 @@
 package com.google.bitcoin.store;
 
 import com.google.bitcoin.core.*;
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -515,6 +519,45 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
     public StoredBlock getOnceUndoableStoredBlock(Sha256Hash hash) throws BlockStoreException {
         return get(hash, true);
     }
+    
+    @Override
+    public StoredBlock getNext(StoredBlock block) throws BlockStoreException {        
+        int height = block.getHeight() + 1;
+        maybeConnect();
+        PreparedStatement s = null;
+        try {
+            s = conn.get().prepareStatement("SELECT chainWork, height, header, wasUndoable FROM headers WHERE height = ?");
+            s.setInt(1, height);
+            ResultSet results = s.executeQuery();
+            if (!results.next()) {
+                return null;
+            }
+            BigInteger chainWork = new BigInteger(results.getBytes(1));
+            height = results.getInt(2);
+            Block b = new Block(params, results.getBytes(3));
+            b.verifyHeader();
+            return new StoredBlock(b, chainWork, height);
+        } catch (SQLException ex) {
+            throw new BlockStoreException(ex);
+        } catch (ProtocolException e) {
+            // Corrupted database.
+            throw new BlockStoreException(e);
+        } catch (VerificationException e) {
+            // Should not be able to happen unless the database contains bad
+            // blocks.
+            throw new BlockStoreException(e);
+        } finally {
+            if (s != null) {
+                try {
+                    s.close();
+                } catch (SQLException e) {
+                    throw new BlockStoreException("Failed to close PreparedStatement");
+                }
+            }
+        }
+        
+    }    
+        
     
     @Nullable
     public StoredUndoableBlock getUndoBlock(Sha256Hash hash) throws BlockStoreException {

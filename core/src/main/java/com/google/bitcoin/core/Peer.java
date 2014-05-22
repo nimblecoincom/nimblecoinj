@@ -16,6 +16,29 @@
 
 package com.google.bitcoin.core;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
+
+import javax.annotation.Nullable;
+
+import net.jcip.annotations.GuardedBy;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.google.bitcoin.store.BlockStore;
 import com.google.bitcoin.store.BlockStoreException;
 import com.google.bitcoin.utils.ListenerRegistration;
@@ -27,20 +50,6 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
-import net.jcip.annotations.GuardedBy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.annotation.Nullable;
-import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReentrantLock;
-
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
 
 /**
  * <p>A Peer handles the high level communication with a Bitcoin node, extending a {@link PeerSocketHandler} which
@@ -402,6 +411,8 @@ public class Peer extends PeerSocketHandler {
                 sendMessage(new Pong(((Ping) m).getNonce()));
         } else if (m instanceof Pong) {
             processPong((Pong)m);
+        } else if (m instanceof GetBlocksMessage) {
+            processGetBlocksMessage((GetBlocksMessage)m);
         } else {
             log.warn("Received unhandled message: {}", m);
         }
@@ -582,6 +593,31 @@ public class Peer extends PeerSocketHandler {
         for (Message item : items) {
             sendMessage(item);
         }
+    }
+
+    private void processGetBlocksMessage(GetBlocksMessage getblocks) throws BlockStoreException {
+        log.info("{}: Received getblocks message: {}", getAddress(), getblocks.toString());
+        StoredBlock lastKnownBlockInLocator = null;
+        for (Sha256Hash locatorHash: getblocks.getLocator()) {
+            StoredBlock storedBlock = blockChain.getBlockStore().get(locatorHash);
+            if (storedBlock!=null) {
+                lastKnownBlockInLocator = storedBlock;
+                break;
+            }
+        }
+        if (lastKnownBlockInLocator==null) {
+            log.warn("{}: no known hash in locator: {}", getAddress(), getblocks.toString());
+            return;
+        }
+        InventoryMessage invResponse = new InventoryMessage(params);
+        StoredBlock currentBlock = lastKnownBlockInLocator; 
+        for (int i = 0; i < 500; i++) {
+            currentBlock = blockChain.getBlockStore().getNext(currentBlock);
+            if (currentBlock==null) break;
+            if (currentBlock.getHeader().getHash().equals(getblocks.getStopHash())) break;
+            invResponse.addBlock(currentBlock.getHeader());
+        }
+        sendMessage(invResponse);
     }
 
     private void processTransaction(Transaction tx) throws VerificationException {

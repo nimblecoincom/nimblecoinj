@@ -19,10 +19,12 @@ package com.google.bitcoin.store;
 import com.google.bitcoin.core.*;
 import com.google.bitcoin.script.Script;
 import com.google.common.collect.Lists;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -606,6 +608,11 @@ public class PostgresFullPrunedBlockStore implements FullPrunedBlockStore {
         return get(hash, true);
     }
 
+    @Override
+    public StoredBlock getNext(StoredBlock block) throws BlockStoreException {
+        throw new UnsupportedOperationException("Not implemented yet");
+    }    
+    
     public StoredUndoableBlock getUndoBlock(Sha256Hash hash) throws BlockStoreException {
         maybeConnect();
         PreparedStatement s = null;

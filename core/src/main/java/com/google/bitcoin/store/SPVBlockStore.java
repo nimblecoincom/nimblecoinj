@@ -18,10 +18,14 @@ package com.google.bitcoin.store;
 
 import com.google.bitcoin.core.*;
 import com.google.bitcoin.utils.Threading;
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -226,6 +230,11 @@ public class SPVBlockStore implements BlockStore {
         } finally { lock.unlock(); }
     }
 
+    @Override
+    public StoredBlock getNext(StoredBlock block) throws BlockStoreException {
+        throw new UnsupportedOperationException("Not implemented yet");
+    }    
+    
     protected StoredBlock lastChainHead = null;
 
     public StoredBlock getChainHead() throws BlockStoreException {

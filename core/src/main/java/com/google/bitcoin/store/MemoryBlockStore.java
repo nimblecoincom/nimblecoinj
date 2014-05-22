@@ -17,6 +17,8 @@
 package com.google.bitcoin.store;
 
 import com.google.bitcoin.core.*;
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -58,6 +60,20 @@ public class MemoryBlockStore implements BlockStore {
         return blockMap.get(hash);
     }
 
+    @Override
+    public StoredBlock getNext(StoredBlock block) throws BlockStoreException {
+        if (blockMap == null) throw new BlockStoreException("MemoryBlockStore is closed");
+        final int height = block.getHeight() + 1;
+        StoredBlock nextStoredBlock = Iterables.find(blockMap.values(), new Predicate<StoredBlock>() {
+            @Override
+            public boolean apply(StoredBlock input) {
+                return input.getHeight() == height;
+            }
+            
+        });
+        return nextStoredBlock;
+    }    
+    
     public StoredBlock getChainHead() throws BlockStoreException {
         if (blockMap == null) throw new BlockStoreException("MemoryBlockStore is closed");
         return chainHead;
