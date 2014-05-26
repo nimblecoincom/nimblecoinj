@@ -79,19 +79,19 @@ public class FullPrunedBlockChain extends AbstractBlockChain {
     }
 
     @Override
-    protected StoredBlock addToBlockStore(StoredBlock storedPrev, Block header, TransactionOutputChanges txOutChanges)
+    protected StoredBlock addToBlockStore(StoredBlock storedPrev, Block newBlock, TransactionOutputChanges txOutChanges)
             throws BlockStoreException, VerificationException {
-        StoredBlock newBlock = storedPrev.build(header);
-        blockStore.put(newBlock, new StoredUndoableBlock(newBlock.getHeader().getHash(), txOutChanges));
-        return newBlock;
+        StoredBlock newStoredBlock = storedPrev.build(newBlock);
+        blockStore.put(newStoredBlock, new StoredUndoableBlock(newStoredBlock.getHeader().getHash(), newBlock.transactions, txOutChanges));
+        return newStoredBlock;
     }
     
     @Override
-    protected StoredBlock addToBlockStore(StoredBlock storedPrev, Block block)
+    protected StoredBlock addToBlockStore(StoredBlock storedPrev, Block newBlock)
             throws BlockStoreException, VerificationException {
-        StoredBlock newBlock = storedPrev.build(block);
-        blockStore.put(newBlock, new StoredUndoableBlock(newBlock.getHeader().getHash(), block.transactions));
-        return newBlock;
+        StoredBlock newStoredBlock = storedPrev.build(newBlock);
+        blockStore.put(newStoredBlock, new StoredUndoableBlock(newStoredBlock.getHeader().getHash(), newBlock.transactions));
+        return newStoredBlock;
     }
 
     @Override

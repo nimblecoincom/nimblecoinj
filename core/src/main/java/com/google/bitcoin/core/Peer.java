@@ -41,6 +41,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.bitcoin.store.BlockStore;
 import com.google.bitcoin.store.BlockStoreException;
+import com.google.bitcoin.store.FullPrunedBlockStore;
 import com.google.bitcoin.utils.ListenerRegistration;
 import com.google.bitcoin.utils.Threading;
 import com.google.common.base.Objects;
@@ -577,7 +578,7 @@ public class Peer extends PeerSocketHandler {
         }
     }
 
-    private void processGetData(GetDataMessage getdata) {
+    private void processGetData(GetDataMessage getdata) throws BlockStoreException {
         log.info("{}: Received getdata message: {}", getAddress(), getdata.toString());
         ArrayList<Message> items = new ArrayList<Message>();
         for (ListenerRegistration<PeerEventListener> registration : eventListeners) {
@@ -586,6 +587,20 @@ public class Peer extends PeerSocketHandler {
             if (listenerItems == null) continue;
             items.addAll(listenerItems);
         }
+        if (blockChain.shouldVerifyTransactions()){
+            FullPrunedBlockStore fullPrunedBlockStore = (FullPrunedBlockStore) blockChain.getBlockStore();
+            for (InventoryItem item: getdata.getItems()) {
+                if (item.type.equals(InventoryItem.Type.Block)) {
+                    Block block = fullPrunedBlockStore.get(item.hash).getHeader();
+                    StoredUndoableBlock storedUndoableBlock = fullPrunedBlockStore.getUndoBlock(block.getHash());
+                    for (Transaction t : storedUndoableBlock.getTransactions()) {
+                        block.addTransaction(t);                    
+                    }                    
+                    items.add(block);
+                }
+            }            
+        }
+        
         if (items.size() == 0) {
             return;
         }

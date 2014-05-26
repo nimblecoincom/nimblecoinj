@@ -36,9 +36,9 @@ public class StoredUndoableBlock implements Serializable {
     private TransactionOutputChanges txOutChanges;
     private List<Transaction> transactions;
     
-    public StoredUndoableBlock(Sha256Hash hash, TransactionOutputChanges txOutChanges) {
+    public StoredUndoableBlock(Sha256Hash hash, List<Transaction> transactions, TransactionOutputChanges txOutChanges) {
         this.blockHash = hash;
-        this.transactions = null;
+        this.transactions = transactions;
         this.txOutChanges = txOutChanges;
     }
     

@@ -465,21 +465,22 @@ public class PostgresFullPrunedBlockStore implements FullPrunedBlockStore {
         byte[] transactions = null;
         byte[] txOutChanges = null;
         try {
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
             if (undoableBlock.getTxOutChanges() != null) {
-                undoableBlock.getTxOutChanges().serializeToStream(bos);
-                txOutChanges = bos.toByteArray();
-            } else {
-                int numTxn = undoableBlock.getTransactions().size();
-                bos.write((int) (0xFF & (numTxn >> 0)));
-                bos.write((int) (0xFF & (numTxn >> 8)));
-                bos.write((int) (0xFF & (numTxn >> 16)));
-                bos.write((int) (0xFF & (numTxn >> 24)));
-                for (Transaction tx : undoableBlock.getTransactions())
-                    tx.bitcoinSerialize(bos);
-                transactions = bos.toByteArray();
-            }
-            bos.close();
+                ByteArrayOutputStream txOutChangesBos = new ByteArrayOutputStream();
+                undoableBlock.getTxOutChanges().serializeToStream(txOutChangesBos);
+                txOutChanges = txOutChangesBos.toByteArray();
+                txOutChangesBos.close();
+            } 
+            ByteArrayOutputStream transactionsBos = new ByteArrayOutputStream();
+            int numTxn = undoableBlock.getTransactions().size();
+            transactionsBos.write((int) (0xFF & (numTxn >> 0)));
+            transactionsBos.write((int) (0xFF & (numTxn >> 8)));
+            transactionsBos.write((int) (0xFF & (numTxn >> 16)));
+            transactionsBos.write((int) (0xFF & (numTxn >> 24)));
+            for (Transaction tx : undoableBlock.getTransactions())
+                tx.bitcoinSerialize(transactionsBos);
+            transactions = transactionsBos.toByteArray();
+            transactionsBos.close();            
         } catch (IOException e) {
             throw new BlockStoreException(e);
         }
@@ -509,9 +510,9 @@ public class PostgresFullPrunedBlockStore implements FullPrunedBlockStore {
                     log.debug("Updating undoable block with hash: " + Utils.bytesToHexString(hashBytes));
 
 
-                if (transactions == null) {
+                if (txOutChanges != null) {
                     s.setBytes(1, txOutChanges);
-                    s.setNull(2, Types.BINARY);
+                    s.setBytes(2, transactions);
                 } else {
                     s.setNull(1, Types.BINARY);
                     s.setBytes(2, transactions);
@@ -532,9 +533,9 @@ public class PostgresFullPrunedBlockStore implements FullPrunedBlockStore {
                 log.debug("Inserting undoable block with hash: " + Utils.bytesToHexString(hashBytes)  + " at height " + height);
 
 
-            if (transactions == null) {
+            if (txOutChanges != null) {
                 s.setBytes(3, txOutChanges);
-                s.setNull(4, Types.BINARY);
+                s.setBytes(4, transactions);
             } else {
                 s.setNull(3, Types.BINARY);
                 s.setBytes(4, transactions);
@@ -632,23 +633,23 @@ public class PostgresFullPrunedBlockStore implements FullPrunedBlockStore {
             byte[] txOutChanges = results.getBytes(1);
             byte[] transactions = results.getBytes(2);
             StoredUndoableBlock block;
+            int offset = 0;
+            int numTxn = ((transactions[offset++] & 0xFF) << 0) |
+                    ((transactions[offset++] & 0xFF) << 8) |
+                    ((transactions[offset++] & 0xFF) << 16) |
+                    ((transactions[offset++] & 0xFF) << 24);
+            List<Transaction> transactionList = new LinkedList<Transaction>();
+            for (int i = 0; i < numTxn; i++) {
+                Transaction tx = new Transaction(params, transactions, offset);
+                transactionList.add(tx);
+                offset += tx.getMessageSize();
+            }
             if (txOutChanges == null) {
-                int offset = 0;
-                int numTxn = ((transactions[offset++] & 0xFF) << 0) |
-                        ((transactions[offset++] & 0xFF) << 8) |
-                        ((transactions[offset++] & 0xFF) << 16) |
-                        ((transactions[offset++] & 0xFF) << 24);
-                List<Transaction> transactionList = new LinkedList<Transaction>();
-                for (int i = 0; i < numTxn; i++) {
-                    Transaction tx = new Transaction(params, transactions, offset);
-                    transactionList.add(tx);
-                    offset += tx.getMessageSize();
-                }
                 block = new StoredUndoableBlock(hash, transactionList);
             } else {
                 TransactionOutputChanges outChangesObject =
                         new TransactionOutputChanges(new ByteArrayInputStream(txOutChanges));
-                block = new StoredUndoableBlock(hash, outChangesObject);
+                block = new StoredUndoableBlock(hash, transactionList, outChangesObject);
             }
             return block;
         } catch (SQLException ex) {
