@@ -48,7 +48,7 @@ public class StoredBlock implements Serializable {
     private int height;
 
     public StoredBlock(Block header, BigInteger chainWork, int height) {
-        this.header = header;
+        this.header = header.cloneAsHeader();
         this.chainWork = chainWork;
         this.height = height;
     }
