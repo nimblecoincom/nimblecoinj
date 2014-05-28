@@ -339,6 +339,7 @@ public class Peer extends PeerSocketHandler {
     }
 
     protected void processMessage(Message m) throws Exception {
+        log.info("{}: Received message {}", getAddress(), m.getClass());
         // Allow event listeners to filter the message stream. Listeners are allowed to drop messages by
         // returning null.
         for (ListenerRegistration<PeerEventListener> registration : eventListeners) {
@@ -591,7 +592,7 @@ public class Peer extends PeerSocketHandler {
             FullPrunedBlockStore fullPrunedBlockStore = (FullPrunedBlockStore) blockChain.getBlockStore();
             for (InventoryItem item: getdata.getItems()) {
                 if (item.type.equals(InventoryItem.Type.Block)) {
-                    Block block = fullPrunedBlockStore.get(item.hash).getHeader();
+                    Block block = fullPrunedBlockStore.get(item.hash).getHeader().cloneAsHeader();
                     StoredUndoableBlock storedUndoableBlock = fullPrunedBlockStore.getUndoBlock(block.getHash());
                     for (Transaction t : storedUndoableBlock.getTransactions()) {
                         block.addTransaction(t);                    
