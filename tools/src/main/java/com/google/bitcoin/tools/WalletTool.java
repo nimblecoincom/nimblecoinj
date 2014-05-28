@@ -150,7 +150,8 @@ public class WalletTool {
         DELETE_KEY,
         SYNC,
         RESET,
-        SEND
+        SEND,
+        NONE
     }
 
     public enum WaitForEnum {
@@ -313,6 +314,7 @@ public class WalletTool {
 
         // What should we do?
         switch (action) {
+            case NONE: break;
             case DUMP: dumpWallet(); break;
             case ADD_KEY: addKey(); break;
             case ADD_ADDR: addAddr(); break;
