@@ -1443,6 +1443,20 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         return broadcast.future();
     }
 
+
+    public void broadcastBlock(Block block) {
+        InventoryMessage inv = new InventoryMessage(params);
+        inv.addBlock(block);
+        for (Peer peer : peers) {
+            try {
+                peer.sendMessage(inv);
+            } catch (Exception e) {
+                log.error("Caught exception sending {} to {}", inv, peer, e);
+            }
+        }
+    }
+
+    
     /**
      * Returns the period between pings for an individual peer. Setting this lower means more accurate and timely ping
      * times are available via {@link com.google.bitcoin.core.Peer#getLastPingTime()} but it increases load on the

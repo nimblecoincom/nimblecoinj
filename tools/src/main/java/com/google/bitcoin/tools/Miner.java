@@ -52,7 +52,7 @@ public class Miner extends AbstractExecutionThreadService {
     protected void run() throws Exception {
         while (isRunning()) {
             mine();
-            Thread.sleep(2000);
+            Thread.sleep(15000);
         }
     }
 	
@@ -82,7 +82,7 @@ public class Miner extends AbstractExecutionThreadService {
         newBlock.verify();
         chain.add(newBlock);
         log.info("Mined block: " + newBlock);
-        //peers.
+        peers.broadcastBlock(newBlock);
 	}
 
 	private long getDifficultyTargetForNewBlock(StoredBlock storedPrev, BlockStore blockStore, NetworkParameters params, long time) throws BlockStoreException {
