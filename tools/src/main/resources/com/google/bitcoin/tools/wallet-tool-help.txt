@@ -4,6 +4,7 @@ Usage: wallet-tool --flags action-name
        wallet-tool action-name --flags
 
 >>> ACTIONS
+  none                 Do nothing, just start a node.
   dump                 Loads and prints the given wallet in textual form to stdout.
   raw-dump             Prints the wallet as a raw protobuf with no parsing or sanity checking applied.
   create               Makes a new wallet in the file specified by --wallet.
@@ -60,6 +61,7 @@ Usage: wallet-tool --flags action-name
                        load failures, this overrides that.
   --server             Accept incoming connections
   --server-port=...    Used with --server. Don't use default port and start the server at the specified port 
+  --miner              Mine blocks
   
 
 >>> WAITING

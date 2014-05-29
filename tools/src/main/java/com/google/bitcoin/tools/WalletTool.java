@@ -17,35 +17,6 @@
 
 package com.google.bitcoin.tools;
 
-import com.google.bitcoin.core.*;
-import com.google.bitcoin.crypto.KeyCrypterException;
-import com.google.bitcoin.net.BlockingClientManager;
-import com.google.bitcoin.net.discovery.DnsDiscovery;
-import com.google.bitcoin.net.discovery.PeerDiscovery;
-import com.google.bitcoin.params.MainNetParams;
-import com.google.bitcoin.params.RegTestParams;
-import com.google.bitcoin.params.TestNet3Params;
-import com.google.bitcoin.protocols.payments.PaymentRequestException;
-import com.google.bitcoin.protocols.payments.PaymentSession;
-import com.google.bitcoin.store.*;
-import com.google.bitcoin.uri.BitcoinURI;
-import com.google.bitcoin.uri.BitcoinURIParseException;
-import com.google.bitcoin.utils.BriefLogFormatter;
-import com.google.common.base.Charsets;
-import com.google.common.collect.ImmutableList;
-import com.google.common.io.Resources;
-import com.google.common.util.concurrent.ListenableFuture;
-
-import joptsimple.OptionParser;
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-import joptsimple.util.DateConverter;
-
-import org.bitcoinj.wallet.Protos;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.spongycastle.util.encoders.Hex;
-
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -61,6 +32,61 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
+
+import joptsimple.OptionParser;
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import joptsimple.util.DateConverter;
+
+import org.bitcoinj.wallet.Protos;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.spongycastle.util.encoders.Hex;
+
+import com.google.bitcoin.core.AbstractBlockChain;
+import com.google.bitcoin.core.AbstractPeerEventListener;
+import com.google.bitcoin.core.AbstractWalletEventListener;
+import com.google.bitcoin.core.Address;
+import com.google.bitcoin.core.AddressFormatException;
+import com.google.bitcoin.core.Block;
+import com.google.bitcoin.core.BlockChain;
+import com.google.bitcoin.core.DownloadListener;
+import com.google.bitcoin.core.DumpedPrivateKey;
+import com.google.bitcoin.core.ECKey;
+import com.google.bitcoin.core.FullPrunedBlockChain;
+import com.google.bitcoin.core.InsufficientMoneyException;
+import com.google.bitcoin.core.NetworkParameters;
+import com.google.bitcoin.core.Peer;
+import com.google.bitcoin.core.PeerAddress;
+import com.google.bitcoin.core.PeerGroup;
+import com.google.bitcoin.core.ScriptException;
+import com.google.bitcoin.core.Transaction;
+import com.google.bitcoin.core.Utils;
+import com.google.bitcoin.core.VerificationException;
+import com.google.bitcoin.core.Wallet;
+import com.google.bitcoin.core.WrongNetworkException;
+import com.google.bitcoin.crypto.KeyCrypterException;
+import com.google.bitcoin.net.BlockingClientManager;
+import com.google.bitcoin.net.discovery.DnsDiscovery;
+import com.google.bitcoin.net.discovery.PeerDiscovery;
+import com.google.bitcoin.params.MainNetParams;
+import com.google.bitcoin.params.RegTestParams;
+import com.google.bitcoin.params.TestNet3Params;
+import com.google.bitcoin.protocols.payments.PaymentRequestException;
+import com.google.bitcoin.protocols.payments.PaymentSession;
+import com.google.bitcoin.store.BlockStore;
+import com.google.bitcoin.store.BlockStoreException;
+import com.google.bitcoin.store.FullPrunedBlockStore;
+import com.google.bitcoin.store.H2FullPrunedBlockStore;
+import com.google.bitcoin.store.SPVBlockStore;
+import com.google.bitcoin.store.WalletProtobufSerializer;
+import com.google.bitcoin.uri.BitcoinURI;
+import com.google.bitcoin.uri.BitcoinURIParseException;
+import com.google.bitcoin.utils.BriefLogFormatter;
+import com.google.common.base.Charsets;
+import com.google.common.collect.ImmutableList;
+import com.google.common.io.Resources;
+import com.google.common.util.concurrent.ListenableFuture;
 
 /**
  * A command line tool for manipulating wallets and working with Bitcoin.
@@ -215,6 +241,7 @@ public class WalletTool {
         parser.accepts("no-pki");
         parser.accepts("server");
         parser.accepts("server-port").withRequiredArg();
+        parser.accepts("miner");
         options = parser.parse(args);
 
         final String HELP_TEXT = Resources.toString(WalletTool.class.getResource("wallet-tool-help.txt"), Charsets.UTF_8);
@@ -352,6 +379,11 @@ public class WalletTool {
         
         saveWallet(walletFile);
 
+        if (options.has("miner")) {
+            startMining();
+        }
+
+
         if (options.has(waitForFlag)) {
             WaitForEnum value;
             try {
@@ -369,6 +401,20 @@ public class WalletTool {
             saveWallet(walletFile);
         }
         shutdown();
+    }
+
+    private static void startMining() {
+        try {
+            setup();
+            peers.startAsync();
+            peers.awaitRunning();
+            Miner miner = new Miner(params, peers, wallet, store, chain);
+            miner.startAsync();
+            miner.awaitRunning();
+        } catch (BlockStoreException e) {
+            System.err.println("Error reading block chain file " + chainBaseFile + ": " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private static void addAddr() {

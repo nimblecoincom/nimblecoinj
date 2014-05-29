@@ -1,16 +1,16 @@
 package com.google.bitcoin.tools;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.math.BigInteger;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.bitcoin.core.AbstractBlockChain;
 import com.google.bitcoin.core.Block;
 import com.google.bitcoin.core.ECKey;
-import com.google.bitcoin.core.FullPrunedBlockChain;
 import com.google.bitcoin.core.NetworkParameters;
+import com.google.bitcoin.core.PeerGroup;
 import com.google.bitcoin.core.Sha256Hash;
 import com.google.bitcoin.core.StoredBlock;
 import com.google.bitcoin.core.Transaction;
@@ -19,48 +19,45 @@ import com.google.bitcoin.core.TransactionOutput;
 import com.google.bitcoin.core.Utils;
 import com.google.bitcoin.core.VerificationException;
 import com.google.bitcoin.core.Wallet;
-import com.google.bitcoin.params.MainNetParams;
 import com.google.bitcoin.script.Script;
 import com.google.bitcoin.script.ScriptOpCodes;
 import com.google.bitcoin.store.BlockStore;
 import com.google.bitcoin.store.BlockStoreException;
-import com.google.bitcoin.store.FullPrunedBlockStore;
-import com.google.bitcoin.store.H2FullPrunedBlockStore;
+import com.google.common.util.concurrent.AbstractExecutionThreadService;
 
 /**
  * Reference miner
  * @author Oscar Guindzberg
  *
  */
-public class Miner {
+public class Miner extends AbstractExecutionThreadService {
 	
     private static final Logger log = LoggerFactory.getLogger(Miner.class);
-	
-	public static void main(String[] args) throws Exception {
-		NetworkParameters params = MainNetParams.get();
-		String walletFileName = "main.miner.wallet";
-        String chainFileName = "main.miner.chain";
-        Wallet wallet;
-        File walletFile = new File(walletFileName);
-        if(walletFile.exists()) {
-        	wallet = Wallet.loadFromFile(walletFile);	
-        } else {
-        	wallet = new Wallet(params);
-        }
-        
-        FullPrunedBlockStore store = new H2FullPrunedBlockStore(params, new File(chainFileName).getAbsolutePath(), 5000);
-		FullPrunedBlockChain chain = new FullPrunedBlockChain(params, wallet, store);
-
-        for (int i = 0; i < 100; i++) {
-    		mineForNetwork(params, wallet, chain, store);
-    		Thread.sleep(500);
-		}
-
-		wallet.saveToFile(new File(walletFileName));       
-		store.close();
+    private NetworkParameters params; 
+    private PeerGroup peers;
+    private Wallet wallet;
+    private BlockStore store; 
+    private AbstractBlockChain chain;
+    
+    public Miner(NetworkParameters params, PeerGroup peers, Wallet wallet, BlockStore store, AbstractBlockChain chain) {
+        this.params = params;
+        this.peers = peers;
+        this.wallet = wallet;
+        this.store = store;
+        this.chain = chain;
     }
 	
-	public static void mineForNetwork(NetworkParameters params, Wallet wallet, FullPrunedBlockChain chain, FullPrunedBlockStore store) throws Exception {
+
+    @Override
+    protected void run() throws Exception {
+        while (isRunning()) {
+            mine();
+            Thread.sleep(2000);
+        }
+    }
+	
+	
+	private void mine() throws Exception {
 		Transaction coinbaseTransaction = new Transaction(params);
     	String coibaseMessage = "Minining NimbleCoin" + System.currentTimeMillis();
     	char[] chars = coibaseMessage.toCharArray();
@@ -85,10 +82,10 @@ public class Miner {
         newBlock.verify();
         chain.add(newBlock);
         log.info("Mined block: " + newBlock);
-		
+        //peers.
 	}
 
-	private static long getDifficultyTargetForNewBlock(StoredBlock storedPrev, BlockStore blockStore, NetworkParameters params, long time) throws BlockStoreException {
+	private long getDifficultyTargetForNewBlock(StoredBlock storedPrev, BlockStore blockStore, NetworkParameters params, long time) throws BlockStoreException {
         if ((storedPrev.getHeight() + 1) % params.getInterval() != 0) {
     		return storedPrev.getHeader().getDifficultyTarget();
         }
