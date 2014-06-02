@@ -380,7 +380,7 @@ public class WalletTool {
         saveWallet(walletFile);
 
         if (options.has("miner")) {
-            startMining();
+            mine();
         }
 
 
@@ -403,11 +403,13 @@ public class WalletTool {
         shutdown();
     }
 
-    private static void startMining() {
+    private static void mine() {
         try {
             setup();
-            peers.startAsync();
-            peers.awaitRunning();
+            if (!peers.isRunning()) {
+                peers.startAsync();
+                peers.awaitRunning();                
+            }
             Miner miner = new Miner(params, peers, wallet, store, chain);
             miner.startAsync();
             miner.awaitRunning();
