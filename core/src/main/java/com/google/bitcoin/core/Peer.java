@@ -339,7 +339,9 @@ public class Peer extends PeerSocketHandler {
     }
 
     protected void processMessage(Message m) throws Exception {
-        log.info("{}: Received message {}", getAddress(), m.getClass());
+        if (!(m instanceof Ping) && ! (m instanceof Pong)) {        
+            log.info("{}: Received message {}", getAddress(), m.getClass());
+        }
         // Allow event listeners to filter the message stream. Listeners are allowed to drop messages by
         // returning null.
         for (ListenerRegistration<PeerEventListener> registration : eventListeners) {
