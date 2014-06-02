@@ -16,22 +16,24 @@
 
 package com.google.bitcoin.core;
 
-import com.google.bitcoin.utils.Threading;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
-import javax.annotation.Nullable;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
-import java.lang.ref.WeakReference;
+import java.lang.ref.SoftReference;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
+import javax.annotation.Nullable;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.bitcoin.utils.Threading;
 
 /**
  * <p>Tracks transactions that are being announced across the network. Typically one is created for you by a
@@ -56,13 +58,17 @@ public class MemoryPool {
     // Before we see the full transaction, we need to track how many peers advertised it, so we can estimate its
     // confidence pre-chain inclusion assuming an un-tampered with network connection. After we see the full transaction
     // we need to switch from tracking that data in the Entry to tracking it in the TransactionConfidence object itself.
-    private static class WeakTransactionReference extends WeakReference<Transaction> {
+    // Temporarily changed WeakReference to SoftReference to prevent GC to quickly remove Transactions
+    // TODO: implement a solution that works for SPV nodes, full nodes and miners.
+    private static class WeakTransactionReference extends SoftReference<Transaction> {
         public Sha256Hash hash;
         public WeakTransactionReference(Transaction tx, ReferenceQueue<Transaction> queue) {
             super(tx, queue);
             hash = tx.getHash();
         }
     }
+
+
     private static class Entry {
         // Invariants: one of the two fields must be null, to indicate which is used.
         Set<PeerAddress> addresses;
@@ -302,6 +308,26 @@ public class MemoryPool {
     }
 
     /**
+     * Returns the all the transactions we have
+     */
+    @Nullable
+    public Set<Transaction> getAll() {
+        lock.lock();
+        try {
+            Set<Transaction> result = new HashSet<Transaction>();
+            for (Entry entry : memoryPool.values()) {
+                if (entry != null && entry.tx != null && entry.tx.get() != null) {
+                    result.add(entry.tx.get());
+                }
+            }
+            return result;
+        } finally {
+            lock.unlock();
+        }
+    }
+    
+    
+    /**
      * Returns true if the TX identified by hash has been seen before (ie, in an inv). Note that a transaction that
      * was broadcast, downloaded and nothing kept a reference to it will eventually be cleared out by the garbage
      * collector and wasSeen() will return false - it does not keep a permanent record of every hash ever broadcast.
@@ -315,4 +341,20 @@ public class MemoryPool {
             lock.unlock();
         }
     }
+    
+
+    /**
+     * Removes an entry from the pool
+     * @param hash
+     */
+    public void remove(Sha256Hash hash) {
+        lock.lock();
+        try {
+            cleanPool();
+            memoryPool.remove(hash);
+        } finally {
+            lock.unlock();
+        }
+    }
+    
 }

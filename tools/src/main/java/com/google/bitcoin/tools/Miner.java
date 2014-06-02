@@ -2,6 +2,7 @@ package com.google.bitcoin.tools;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,8 +79,15 @@ public class Miner extends AbstractExecutionThreadService {
         
         Block newBlock = new Block(params, NetworkParameters.PROTOCOL_VERSION, prevBlockHash, time, difficultyTarget);
         newBlock.addTransaction(coinbaseTransaction);
+        Set<Transaction> transactions = peers.getMemoryPool().getAll();
+        for (Transaction transaction : transactions) {
+            newBlock.addTransaction(transaction);
+        }       
         newBlock.solve();
         newBlock.verify();
+        for (Transaction transaction : transactions) {
+            peers.getMemoryPool().remove(transaction.getHash());
+        }
         chain.add(newBlock);
         log.info("Mined block: " + newBlock);
         peers.broadcastBlock(newBlock);
