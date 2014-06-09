@@ -1247,7 +1247,9 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         int numConnectedPeers = 0;
         lock.lock();
         try {
-            pendingPeers.remove(peer);
+            if (!peer.getInitiatedByPeer()) {
+                pendingPeers.remove(peer);
+            }
             peers.remove(peer);
 
             PeerAddress address = peer.getAddress();
@@ -1268,12 +1270,13 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
             numPeers = peers.size() + pendingPeers.size();
             numConnectedPeers = peers.size();
 
-            groupBackoff.trackFailure();
-
-            //TODO: if network failure is suspected, do not backoff peer
-            backoffMap.get(address).trackFailure();
-            // Put back on inactive list
-            inactives.offer(address);
+            if (!peer.getInitiatedByPeer()) {
+                groupBackoff.trackFailure();
+                //TODO: if network failure is suspected, do not backoff peer
+                backoffMap.get(address).trackFailure();
+                // Put back on inactive list
+                inactives.offer(address);
+            }
 
             if (numPeers < getMaxConnections()) {
                 triggerConnections();
