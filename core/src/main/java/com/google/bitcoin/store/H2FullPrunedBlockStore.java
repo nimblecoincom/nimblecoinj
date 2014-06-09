@@ -102,7 +102,7 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
         this.fullStoreDepth = fullStoreDepth;
         // We choose a very lax timeout to avoid the database throwing exceptions on complex operations, as time is not
         // a particularly precious resource when just keeping up with the chain.
-        connectionURL = "jdbc:h2:" + dbName + ";create=true;LOCK_TIMEOUT=60000";
+        connectionURL = "jdbc:h2:tcp://localhost/" + dbName + ";create=true;LOCK_TIMEOUT=60000";        
         
         conn = new ThreadLocal<Connection>();
         allConnections = new LinkedList<Connection>();
