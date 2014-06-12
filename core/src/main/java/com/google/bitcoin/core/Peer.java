@@ -762,6 +762,7 @@ public class Peer extends PeerSocketHandler {
     private ListenableFuture<Object> downloadDependenciesInternal(final Transaction tx,
                                                                   final Object marker,
                                                                   final List<Transaction> results) {
+        if (tx.isCoinBase()) return Futures.immediateFuture(marker);
         checkNotNull(memoryPool, "Must have a configured MemoryPool object to download dependencies.");
         final SettableFuture<Object> resultFuture = SettableFuture.create();
         final Sha256Hash rootTxHash = tx.getHash();
