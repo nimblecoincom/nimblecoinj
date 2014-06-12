@@ -17,6 +17,7 @@
 
 package com.google.bitcoin.tools;
 
+import static com.google.common.base.Preconditions.*;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -405,12 +406,14 @@ public class WalletTool {
 
     private static void mine() {
         try {
+
+            checkArgument(mode.equals(ValidationMode.FULL), "Miner should be started in full mode");
             setup();
             if (!peers.isRunning()) {
                 peers.startAsync();
                 peers.awaitRunning();                
             }
-            Miner miner = new Miner(params, peers, wallet, store, chain);
+            Miner miner = new Miner(params, peers, wallet, (FullPrunedBlockStore) store, chain);
             miner.startAsync();
             miner.awaitRunning();
         } catch (BlockStoreException e) {
