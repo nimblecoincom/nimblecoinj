@@ -2,6 +2,7 @@ package com.google.bitcoin.tools;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
+import java.util.HashSet;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -24,6 +25,7 @@ import com.google.bitcoin.script.Script;
 import com.google.bitcoin.script.ScriptOpCodes;
 import com.google.bitcoin.store.BlockStore;
 import com.google.bitcoin.store.BlockStoreException;
+import com.google.bitcoin.store.FullPrunedBlockStore;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 
 /**
@@ -37,10 +39,10 @@ public class Miner extends AbstractExecutionThreadService {
     private NetworkParameters params; 
     private PeerGroup peers;
     private Wallet wallet;
-    private BlockStore store; 
+    private FullPrunedBlockStore store; 
     private AbstractBlockChain chain;
     
-    public Miner(NetworkParameters params, PeerGroup peers, Wallet wallet, BlockStore store, AbstractBlockChain chain) {
+    public Miner(NetworkParameters params, PeerGroup peers, Wallet wallet, FullPrunedBlockStore store, AbstractBlockChain chain) {
         this.params = params;
         this.peers = peers;
         this.wallet = wallet;
@@ -52,8 +54,14 @@ public class Miner extends AbstractExecutionThreadService {
     @Override
     protected void run() throws Exception {
         while (isRunning()) {
-            mine();
-            Thread.sleep(15000);
+            try {
+                System.out.println("Press any key to mine 1 block...");
+                System.in.read();
+                mine();
+                //Thread.sleep(30000);
+            } catch (Exception e) {
+                log.error("Exception mining", e);
+            }
         }
     }
 	
@@ -79,13 +87,13 @@ public class Miner extends AbstractExecutionThreadService {
         
         Block newBlock = new Block(params, NetworkParameters.PROTOCOL_VERSION, prevBlockHash, time, difficultyTarget);
         newBlock.addTransaction(coinbaseTransaction);
-        Set<Transaction> transactions = peers.getMemoryPool().getAll();
-        for (Transaction transaction : transactions) {
+        Set<Transaction> validTransactions = filterValidTransactions(peers.getMemoryPool().getAll());
+        for (Transaction transaction : validTransactions) {
             newBlock.addTransaction(transaction);
         }       
         newBlock.solve();
         newBlock.verify();
-        for (Transaction transaction : transactions) {
+        for (Transaction transaction : validTransactions) {
             peers.getMemoryPool().remove(transaction.getHash());
         }
         chain.add(newBlock);
@@ -93,7 +101,19 @@ public class Miner extends AbstractExecutionThreadService {
         peers.broadcastBlock(newBlock);
 	}
 
-	private long getDifficultyTargetForNewBlock(StoredBlock storedPrev, BlockStore blockStore, NetworkParameters params, long time) throws BlockStoreException {
+	private Set<Transaction> filterValidTransactions(Set<Transaction> allTransactions) throws BlockStoreException {
+	    Set<Transaction> validTransactions = new HashSet<Transaction>();
+	    for (Transaction transaction : allTransactions) {
+            if (!store.hasUnspentOutputs(transaction.getHash(), transaction.getOutputs().size())) {
+                validTransactions.add(transaction);
+            }
+            
+        }
+        return validTransactions;
+    }
+
+
+    private long getDifficultyTargetForNewBlock(StoredBlock storedPrev, BlockStore blockStore, NetworkParameters params, long time) throws BlockStoreException {
         if ((storedPrev.getHeight() + 1) % params.getInterval() != 0) {
     		return storedPrev.getHeader().getDifficultyTarget();
         }
