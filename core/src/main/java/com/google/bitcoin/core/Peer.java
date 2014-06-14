@@ -304,6 +304,20 @@ public class Peer extends PeerSocketHandler {
             return addr.toString();
         }
     }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof Peer)) return false;
+        Peer other = (Peer) o;
+        return other.peerAddress.equals(this.peerAddress);
+    }
+
+    @Override
+    public int hashCode() {
+        return peerAddress.hashCode();
+    }
+    
+    
 
     @Override
     public void connectionClosed() {
