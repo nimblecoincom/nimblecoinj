@@ -153,6 +153,10 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         public List<Message> getData(Peer peer, GetDataMessage m) {
             return handleGetData(m);
         }
+        
+        public void onTransaction(Peer peer, Transaction t) {
+            broadcastReceivedTransaction(t, peer);
+        };
 
         @Override
         public void onBlocksDownloaded(Peer peer, Block block, int blocksLeft) {
@@ -161,6 +165,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
                 log.info("Force update Bloom filter due to high false positive rate");
                 recalculateFastCatchupAndFilter(FilterRecalculateMode.FORCE_SEND);
             }
+            broadcastBlock(block, peer);
         }
     };
 
@@ -1446,19 +1451,45 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         return broadcast.future();
     }
 
-
+    /**
+     * Sends an inv to all the peers announcing the block
+     */
     public void broadcastBlock(Block block) {
+        broadcastBlock(block, null);
+    }
+
+    /**
+     * Sends an inv to all the peers (but peerToSkip) announcing the block
+     */
+    public void broadcastBlock(Block block, Peer peerToSkip) {
         InventoryMessage inv = new InventoryMessage(params);
         inv.addBlock(block);
         for (Peer peer : peers) {
             try {
-                peer.sendMessage(inv);
+                if (peerToSkip==null || !peer.equals(peerToSkip)) {
+                    log.info("{}: Sending message {}", peer.getAddress(), inv.getClass());                    
+                    peer.sendMessage(inv);                    
+                }
             } catch (Exception e) {
                 log.error("Caught exception sending {} to {}", inv, peer, e);
             }
         }
     }
 
+    public void broadcastReceivedTransaction(Transaction tx, Peer peerToSkip) {
+        InventoryMessage inv = new InventoryMessage(params);
+        inv.addTransaction(tx);
+        for (Peer peer : peers) {
+            try {
+                if (peerToSkip==null || !peer.equals(peerToSkip)) {
+                    peer.sendMessage(inv);                    
+                }
+            } catch (Exception e) {
+                log.error("Caught exception sending {} to {}", inv, peer, e);
+            }
+        }
+    }
+    
     
     /**
      * Returns the period between pings for an individual peer. Setting this lower means more accurate and timely ping
