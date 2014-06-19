@@ -655,8 +655,8 @@ public class Wallet implements Serializable, BlockChainListener, PeerFilterProvi
             BigInteger valueSentToMe = tx.getValueSentToMe(this);
             BigInteger valueSentFromMe = tx.getValueSentFromMe(this);
             if (log.isInfoEnabled()) {
-                log.info(String.format("Received a pending transaction %s that spends %s BTC from our own wallet," +
-                        " and sends us %s BTC", tx.getHashAsString(), Utils.bitcoinValueToFriendlyString(valueSentFromMe),
+                log.info(String.format("Received a pending transaction %s that spends %s NBC from our own wallet," +
+                        " and sends us %s NBC", tx.getHashAsString(), Utils.bitcoinValueToFriendlyString(valueSentFromMe),
                         Utils.bitcoinValueToFriendlyString(valueSentToMe)));
             }
             if (tx.getConfidence().getSource().equals(TransactionConfidence.Source.UNKNOWN)) {
@@ -846,7 +846,7 @@ public class Wallet implements Serializable, BlockChainListener, PeerFilterProvi
         BigInteger valueSentToMe = tx.getValueSentToMe(this);
         BigInteger valueDifference = valueSentToMe.subtract(valueSentFromMe);
 
-        log.info("Received tx{} for {} BTC: {} [{}] in block {}", sideChain ? " on a side chain" : "",
+        log.info("Received tx{} for {} NBC: {} [{}] in block {}", sideChain ? " on a side chain" : "",
                 bitcoinValueToFriendlyString(valueDifference), tx.getHashAsString(), relativityOffset,
                 block != null ? block.getHeader().getHash() : "(unit test)");
 
@@ -1888,7 +1888,7 @@ public class Wallet implements Serializable, BlockChainListener, PeerFilterProvi
 
             List<TransactionInput> originalInputs = new ArrayList<TransactionInput>(req.tx.getInputs());
 
-            // We need to know if we need to add an additional fee because one of our values are smaller than 0.01 BTC
+            // We need to know if we need to add an additional fee because one of our values are smaller than 0.01 NBC
             boolean needAtLeastReferenceFee = false;
             if (req.ensureMinRequiredFee && !req.emptyWallet) { // min fee checking is handled later for emptyWallet
                 for (TransactionOutput output : req.tx.getOutputs())
@@ -2351,7 +2351,7 @@ public class Wallet implements Serializable, BlockChainListener, PeerFilterProvi
             StringBuilder builder = new StringBuilder();
             BigInteger estimatedBalance = getBalance(BalanceType.ESTIMATED);
             BigInteger availableBalance = getBalance(BalanceType.AVAILABLE);
-            builder.append(String.format("Wallet containing %s BTC (available: %s BTC) in:%n",
+            builder.append(String.format("Wallet containing %s NBC (available: %s NBC) in:%n",
                     bitcoinValueToPlainString(estimatedBalance), bitcoinValueToPlainString(availableBalance)));
             builder.append(String.format("  %d pending transactions%n", pending.size()));
             builder.append(String.format("  %d unspent transactions%n", unspent.size()));
@@ -3470,7 +3470,7 @@ public class Wallet implements Serializable, BlockChainListener, PeerFilterProvi
                 if (additionalValueSelected != null)
                     change = change.add(additionalValueSelected);
 
-                // If change is < 0.01 BTC, we will need to have at least minfee to be accepted by the network
+                // If change is < 0.01 NBC, we will need to have at least minfee to be accepted by the network
                 if (req.ensureMinRequiredFee && !change.equals(BigInteger.ZERO) &&
                         change.compareTo(Utils.CENT) < 0 && fees.compareTo(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE) < 0) {
                     // This solution may fit into category 2, but it may also be category 3, we'll check that later

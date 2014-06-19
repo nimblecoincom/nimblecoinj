@@ -69,11 +69,11 @@ public class FakeTxBuilder {
     }
 
     /**
-     * @return Transaction[] Transaction[0] is a feeder transaction, supplying BTC to Transaction[1]
+     * @return Transaction[] Transaction[0] is a feeder transaction, supplying NBC to Transaction[1]
      */
     public static Transaction[] createFakeTx(NetworkParameters params, BigInteger nanocoins,
                                              Address to, Address from) {
-        // Create fake TXes of sufficient realism to exercise the unit tests. This transaction send BTC from the
+        // Create fake TXes of sufficient realism to exercise the unit tests. This transaction send NBC from the
         // from address, to the to address with to one to somewhere else to simulate change.
         Transaction t = new Transaction(params);
         TransactionOutput outputToMe = new TransactionOutput(params, t, nanocoins, to);

@@ -157,7 +157,7 @@ public class ExamplePaymentChannelClient {
         ListenableFuture<BigInteger> balanceFuture = appKit.wallet().getBalanceFuture(amountPlusFee, Wallet.BalanceType.ESTIMATED);
         if (!balanceFuture.isDone()) {
             System.out.println("Please send " + Utils.bitcoinValueToFriendlyString(amountPlusFee) +
-                    " BTC to " + myKey.toAddress(params));
+                    " NBC to " + myKey.toAddress(params));
             Futures.getUnchecked(balanceFuture);
         }
     }
