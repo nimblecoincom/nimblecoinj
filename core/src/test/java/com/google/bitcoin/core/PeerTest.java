@@ -53,6 +53,7 @@ import static org.junit.Assert.*;
 
 @RunWith(value = Parameterized.class)
 public class PeerTest extends TestWithNetworkConnections {
+    private PeerGroup peerGroup;
     private Peer peer;
     private InboundMessageQueuer writeTarget;
     private static final int OTHER_PEER_CHAIN_HEIGHT = 110;
@@ -80,7 +81,8 @@ public class PeerTest extends TestWithNetworkConnections {
         memoryPool = new MemoryPool();
         VersionMessage ver = new VersionMessage(unitTestParams, 100);
         InetSocketAddress address = new InetSocketAddress("127.0.0.1", 4000);
-        peer = new Peer(unitTestParams, ver, new PeerAddress(address), blockChain, memoryPool);
+        peerGroup = new PeerGroup(unitTestParams, blockChain, channels);
+        peer = new Peer(peerGroup, unitTestParams, ver, new PeerAddress(address), blockChain, memoryPool);
         peer.addWallet(wallet);
     }
 
@@ -268,7 +270,7 @@ public class PeerTest extends TestWithNetworkConnections {
         // Check co-ordination of which peer to download via the memory pool.
         VersionMessage ver = new VersionMessage(unitTestParams, 100);
         InetSocketAddress address = new InetSocketAddress("127.0.0.1", 4242);
-        Peer peer2 = new Peer(unitTestParams, ver, new PeerAddress(address), blockChain, memoryPool);
+        Peer peer2 = new Peer(peerGroup, unitTestParams, ver, new PeerAddress(address), blockChain, memoryPool);
         peer2.addWallet(wallet);
         VersionMessage peerVersion = new VersionMessage(unitTestParams, OTHER_PEER_CHAIN_HEIGHT);
         peerVersion.clientVersion = 70001;

@@ -286,6 +286,9 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 500000;
     private volatile int vConnectTimeoutMillis = DEFAULT_CONNECT_TIMEOUT_MILLIS;
 
+    // Blocks for which we have already sent a getdata
+    private final HashSet<Sha256Hash> pendingBlockDownloads = new HashSet<Sha256Hash>();
+    
     //Whether to start a socket server accepting incoming connections
     private boolean startServer = false;
     //Port to start as a server if startServer==true
@@ -765,7 +768,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
                     ver.bestHeight = chain == null ? 0 : chain.getBestChainHeight();
                     ver.time = Utils.currentTimeSeconds();
 
-                    Peer peer = new Peer(params, ver, new PeerAddress(inetAddress, port), chain, memoryPool, downloadTxDependencies, true);
+                    Peer peer = new Peer(PeerGroup.this, params, ver, new PeerAddress(inetAddress, port), chain, memoryPool, downloadTxDependencies, true);
                     peer.addEventListener(startupListener, Threading.SAME_THREAD);
                     peer.setMinProtocolVersion(vMinRequiredProtocolVersion);
                     pendingPeers.add(peer);
@@ -985,7 +988,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         ver.bestHeight = chain == null ? 0 : chain.getBestChainHeight();
         ver.time = Utils.currentTimeSeconds();
 
-        Peer peer = new Peer(params, ver, address, chain, memoryPool, downloadTxDependencies);
+        Peer peer = new Peer(this, params, ver, address, chain, memoryPool, downloadTxDependencies);
         peer.addEventListener(startupListener, Threading.SAME_THREAD);
         peer.setMinProtocolVersion(vMinRequiredProtocolVersion);
         pendingPeers.add(peer);
@@ -1622,5 +1625,9 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         } finally {
             lock.unlock();
         }
+    }
+    
+    HashSet<Sha256Hash> getPendingBlockDownloads() {
+        return pendingBlockDownloads;
     }
 }

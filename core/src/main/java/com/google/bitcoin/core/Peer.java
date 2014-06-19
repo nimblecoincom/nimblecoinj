@@ -21,7 +21,6 @@ import static com.google.common.base.Preconditions.checkState;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -66,6 +65,7 @@ public class Peer extends PeerSocketHandler {
 
     protected final ReentrantLock lock = Threading.lock("peer");
 
+    private final PeerGroup peerGroup;
     private final NetworkParameters params;
     private final AbstractBlockChain blockChain;
 
@@ -125,9 +125,6 @@ public class Peer extends PeerSocketHandler {
     // It's not quite the same as getDataFutures, as this is used only for getdatas done as part of downloading
     // the chain and so is lighter weight (we just keep a bunch of hashes not futures).
     //
-    // It is important to avoid a nasty edge case where we can end up with parallel chain downloads proceeding
-    // simultaneously if we were to receive a newly solved block whilst parts of the chain are streaming to us.
-    private final HashSet<Sha256Hash> pendingBlockDownloads = new HashSet<Sha256Hash>();
     // The lowest version number we're willing to accept. Lower than this will result in an immediate disconnect.
     private volatile int vMinProtocolVersion = Pong.MIN_PROTOCOL_VERSION;
     // When an API user explicitly requests a block or transaction from a peer, the InventoryItem is put here
@@ -169,8 +166,8 @@ public class Peer extends PeerSocketHandler {
      * <p>The remoteAddress provided should match the remote address of the peer which is being connected to, and is
      * used to keep track of which peers relayed transactions and offer more descriptive logging.</p>
      */
-    public Peer(NetworkParameters params, VersionMessage ver, @Nullable AbstractBlockChain chain, PeerAddress remoteAddress) {
-        this(params, ver, remoteAddress, chain, null);
+    public Peer(PeerGroup peerGroup, NetworkParameters params, VersionMessage ver, @Nullable AbstractBlockChain chain, PeerAddress remoteAddress) {
+        this(peerGroup, params, ver, remoteAddress, chain, null);
     }
 
     /**
@@ -187,9 +184,9 @@ public class Peer extends PeerSocketHandler {
      * <p>The remoteAddress provided should match the remote address of the peer which is being connected to, and is
      * used to keep track of which peers relayed transactions and offer more descriptive logging.</p>
      */
-    public Peer(NetworkParameters params, VersionMessage ver, PeerAddress remoteAddress,
+    public Peer(PeerGroup peerGroup, NetworkParameters params, VersionMessage ver, PeerAddress remoteAddress,
             @Nullable AbstractBlockChain chain, @Nullable MemoryPool mempool) {
-        this(params, ver, remoteAddress, chain, mempool, true);
+        this(peerGroup, params, ver, remoteAddress, chain, mempool, true);
     }
 
     /**
@@ -206,9 +203,9 @@ public class Peer extends PeerSocketHandler {
      * <p>The remoteAddress provided should match the remote address of the peer which is being connected to, and is
      * used to keep track of which peers relayed transactions and offer more descriptive logging.</p>
      */
-    public Peer(NetworkParameters params, VersionMessage ver, PeerAddress remoteAddress,
+    public Peer(PeerGroup peerGroup, NetworkParameters params, VersionMessage ver, PeerAddress remoteAddress,
                 @Nullable AbstractBlockChain chain, @Nullable MemoryPool mempool, boolean downloadTxDependencies) {
-        this(params, ver, remoteAddress, chain, mempool, downloadTxDependencies, false);
+        this(peerGroup, params, ver, remoteAddress, chain, mempool, downloadTxDependencies, false);
     }
     
     
@@ -226,10 +223,11 @@ public class Peer extends PeerSocketHandler {
      * <p>The remoteAddress provided should match the remote address of the peer which is being connected to, and is
      * used to keep track of which peers relayed transactions and offer more descriptive logging.</p>
      */
-    public Peer(NetworkParameters params, VersionMessage ver, PeerAddress remoteAddress,
+    public Peer(PeerGroup peerGroup, NetworkParameters params, VersionMessage ver, PeerAddress remoteAddress,
 				@Nullable AbstractBlockChain chain, @Nullable MemoryPool mempool, boolean downloadTxDependencies, 
 				boolean initiatedByPeer) {
         super(params, remoteAddress);
+        this.peerGroup = peerGroup;
         this.params = Preconditions.checkNotNull(params);
         this.versionMessage = Preconditions.checkNotNull(ver);
         this.downloadTxDependencies = downloadTxDependencies;
@@ -259,8 +257,8 @@ public class Peer extends PeerSocketHandler {
      * <p>The remoteAddress provided should match the remote address of the peer which is being connected to, and is
      * used to keep track of which peers relayed transactions and offer more descriptive logging.</p>
      */
-    public Peer(NetworkParameters params, AbstractBlockChain blockChain, PeerAddress peerAddress, String thisSoftwareName, String thisSoftwareVersion) {
-        this(params, new VersionMessage(params, blockChain.getBestChainHeight(), true, blockChain.shouldVerifyTransactions()), blockChain, peerAddress);
+    public Peer(PeerGroup peerGroup, NetworkParameters params, AbstractBlockChain blockChain, PeerAddress peerAddress, String thisSoftwareName, String thisSoftwareVersion) {
+        this(peerGroup, params, new VersionMessage(params, blockChain.getBestChainHeight(), true, blockChain.shouldVerifyTransactions()), blockChain, peerAddress);
         this.versionMessage.appendToSubVer(thisSoftwareName, thisSoftwareVersion, null);
     }
 
@@ -548,11 +546,13 @@ public class Peer extends PeerSocketHandler {
                 boolean passedTime = header.getTimeSeconds() >= fastCatchupTimeSecs;
                 boolean reachedTop = blockChain.getBestChainHeight() >= vPeerVersionMessage.bestHeight;
                 if (!passedTime && !reachedTop) {
+                    /*
                     if (!vDownloadData) {
                         // Not download peer anymore, some other peer probably became better.
                         log.info("Lost download peer status, throwing away downloaded headers.");
                         return;
                     }
+                    */
                     if (blockChain.add(header)) {
                         // The block was successfully linked into the chain. Notify the user of our progress.
                         invokeOnBlocksDownloaded(header);
@@ -899,11 +899,13 @@ public class Peer extends PeerSocketHandler {
             return;
         }
         // Did we lose download peer status after requesting block data?
+        /*
         if (!vDownloadData) {
             log.debug("{}: Received block we did not ask for: {}", getAddress(), m.getHashAsString());
             return;
         }
-        pendingBlockDownloads.remove(m.getHash());
+        */
+        peerGroup.getPendingBlockDownloads().remove(m.getHash());
         try {
             // Otherwise it's a block sent to us because the peer thought we needed it, so add it to the block chain.
             if (blockChain.add(m)) {
@@ -918,7 +920,7 @@ public class Peer extends PeerSocketHandler {
                 //
                 // We must do two things here:
                 // (1) Request from current top of chain to the oldest ancestor of the received block in the orphan set
-                // (2) Filter out duplicate getblock requests (done in blockChainDownloadLocked).
+                // (2) Filter out duplicate getblocks requests (done in blockChainDownloadLocked).
                 //
                 // The reason for (1) is that otherwise if new blocks were solved during the middle of chain download
                 // we'd do a blockChainDownloadLocked() on the new best chain head, which would cause us to try and grab the
@@ -954,10 +956,12 @@ public class Peer extends PeerSocketHandler {
         if (log.isDebugEnabled()) {
             log.debug("{}: Received broadcast filtered block {}", getAddress(), m.getHash().toString());
         }
+        /*
         if (!vDownloadData) {
             log.debug("{}: Received block we did not ask for: {}", getAddress(), m.getHash().toString());
             return;
         }
+        */
         if (blockChain == null) {
             log.warn("Received filtered block but was not configured with an AbstractBlockChain");
             return;
@@ -965,7 +969,7 @@ public class Peer extends PeerSocketHandler {
         // Note that we currently do nothing about peers which maliciously do not include transactions which
         // actually match our filter or which simply do not send us all the transactions we need: it can be fixed
         // by cross-checking peers against each other.
-        pendingBlockDownloads.remove(m.getBlockHeader().getHash());
+        peerGroup.getPendingBlockDownloads().remove(m.getBlockHeader().getHash());
         try {
             // Otherwise it's a block sent to us because the peer thought we needed it, so add it to the block chain.
             // The FilteredBlock m here contains a list of hashes, and may contain Transaction objects for a subset
@@ -1120,12 +1124,12 @@ public class Peer extends PeerSocketHandler {
 
         lock.lock();
         try {
-            if (blocks.size() > 0 && downloadData && blockChain != null) {
+            if (blocks.size() > 0 && blockChain != null) {
                 // Ideally, we'd only ask for the data here if we actually needed it. However that can imply a lot of
                 // disk IO to figure out what we've got. Normally peers will not send us inv for things we already have
                 // so we just re-request it here, and if we get duplicates the block chain / wallet will filter them out.
                 for (InventoryItem item : blocks) {
-                    if (blockChain.isOrphan(item.hash) && downloadBlockBodies) {
+                    if (blockChain.isOrphan(item.hash) && downloadData && downloadBlockBodies) {
                         // If an orphan was re-advertised, ask for more blocks unless we are not currently downloading
                         // full block data because we have a getheaders outstanding.
                         final Block orphanRoot = checkNotNull(blockChain.getOrphanRoot(item.hash));
@@ -1143,14 +1147,14 @@ public class Peer extends PeerSocketHandler {
                         // part of chain download with newly announced blocks, so it should always be taken care of by
                         // the duplicate check in blockChainDownloadLocked(). But the satoshi client may change in future so
                         // it's better to be safe here.
-                        if (!pendingBlockDownloads.contains(item.hash)) {
+                        if (!peerGroup.getPendingBlockDownloads().contains(item.hash)) {
                             if (vPeerVersionMessage.isBloomFilteringSupported() && useFilteredBlocks) {
                                 getdata.addItem(new InventoryItem(InventoryItem.Type.FilteredBlock, item.hash));
                                 pingAfterGetData = true;
                             } else {
                                 getdata.addItem(item);
                             }
-                            pendingBlockDownloads.add(item.hash);
+                            peerGroup.getPendingBlockDownloads().add(item.hash);
                         }
                     }
                 }

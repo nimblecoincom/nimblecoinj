@@ -54,7 +54,7 @@ public class TestWithNetworkConnections {
     protected SocketAddress socketAddress;
 
     private NioServer peerServers[] = new NioServer[PEER_SERVERS];
-    private final ClientConnectionManager channels;
+    protected final ClientConnectionManager channels;
     protected final BlockingQueue<InboundMessageQueuer> newPeerWriteTargetQueue = new LinkedBlockingQueue<InboundMessageQueuer>();
 
     public enum ClientType {
