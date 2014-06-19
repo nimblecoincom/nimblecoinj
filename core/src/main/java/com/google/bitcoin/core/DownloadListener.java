@@ -41,7 +41,6 @@ public class DownloadListener extends AbstractPeerEventListener {
         originalBlocksLeft = blocksLeft;
         if (blocksLeft == 0) {
             doneDownload();
-            done.release();
         }
     }
 
@@ -53,7 +52,6 @@ public class DownloadListener extends AbstractPeerEventListener {
         if (blocksLeft == 0) {
             caughtUp = true;
             doneDownload();
-            done.release();
         }
 
         if (blocksLeft < 0 || originalBlocksLeft <= 0)
@@ -92,6 +90,7 @@ public class DownloadListener extends AbstractPeerEventListener {
      * Called when we are done downloading the block chain.
      */
     protected void doneDownload() {
+        done.release();
     }
 
     /**
@@ -100,4 +99,13 @@ public class DownloadListener extends AbstractPeerEventListener {
     public void await() throws InterruptedException {
         done.acquire();
     }
+
+    /**
+     * Return whether the chain download finished.
+     */
+    public boolean hasFinished() {
+        return done.hasQueuedThreads();
+    }
+
+    
 }
