@@ -6,3 +6,5 @@ target
 *.iml
 
 *.jpage
+tools/testbox/logs/*
+tools/testbox/data/regtest*

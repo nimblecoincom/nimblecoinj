@@ -3,6 +3,7 @@ package com.google.bitcoin.tools;
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
 import java.util.HashSet;
+import java.util.Random;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -55,10 +56,10 @@ public class Miner extends AbstractExecutionThreadService {
     protected void run() throws Exception {
         while (isRunning()) {
             try {
-                System.out.println("Press any key to mine 1 block...");
-                System.in.read();
+                //System.out.println("Press any key to mine 1 block...");
+                //System.in.read();
                 mine();
-                //Thread.sleep(30000);
+                Thread.sleep(Math.round(new Random().nextFloat()*5000));
             } catch (Exception e) {
                 log.error("Exception mining", e);
             }

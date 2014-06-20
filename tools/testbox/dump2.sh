@@ -1,0 +1,1 @@
+./simple-wallet-tool dump --mode=FULL --net=REGTEST --wallet=data/regtest2.wallet --chain=data/regtest2.chain --debuglog
