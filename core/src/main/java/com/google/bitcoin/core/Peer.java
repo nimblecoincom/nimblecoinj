@@ -604,6 +604,7 @@ public class Peer extends PeerSocketHandler {
             if (listenerItems == null) continue;
             items.addAll(listenerItems);
         }
+        boolean resendChainHead = false;
         if (blockChain.shouldVerifyTransactions()){
             FullPrunedBlockStore fullPrunedBlockStore = (FullPrunedBlockStore) blockChain.getBlockStore();
             for (InventoryItem item: getdata.getItems()) {
@@ -614,6 +615,9 @@ public class Peer extends PeerSocketHandler {
                         block.addTransaction(t);                    
                     }                    
                     items.add(block);
+                    if (block.equals(lastInvNumber500SentAsPartOfBlockChainUpload)) {
+                        resendChainHead = true;
+                    }
                 }
             }            
         }
@@ -625,8 +629,20 @@ public class Peer extends PeerSocketHandler {
         for (Message item : items) {
             sendMessage(item);
         }
+        if (resendChainHead) {
+            InventoryMessage inv = new InventoryMessage(params);
+            inv.addBlock(blockChain.getChainHead().getHeader());
+            sendMessage(inv);
+        }
     }
 
+    /**
+     * During blockchain upload send invs of 500 blocks. lastInvNumber500SentAsPartOfBlockChainUpload is the last
+     * block sent. If the peer sends a getdata for that block, after the standard block response, send an inv with
+     * the chain head, so the peer sends a new getblocks 
+     */
+    private Block lastInvNumber500SentAsPartOfBlockChainUpload = null;
+    
     private void processGetBlocksMessage(GetBlocksMessage getblocks) throws BlockStoreException {
         log.info("{}: Received getblocks message: {}", getAddress(), getblocks.toString());
         StoredBlock lastKnownBlockInLocator = null;
@@ -642,14 +658,18 @@ public class Peer extends PeerSocketHandler {
             return;
         }
         InventoryMessage invResponse = new InventoryMessage(params);
-        StoredBlock currentBlock = lastKnownBlockInLocator; 
+        StoredBlock currentBlock = lastKnownBlockInLocator;
         for (int i = 0; i < 500; i++) {
             currentBlock = blockChain.getBlockStore().getNext(currentBlock);
             if (currentBlock==null) break;
             if (currentBlock.getHeader().getHash().equals(getblocks.getStopHash())) break;
             invResponse.addBlock(currentBlock.getHeader());
+            if (i==499) {
+                lastInvNumber500SentAsPartOfBlockChainUpload = currentBlock.getHeader();
+            }            
         }
         sendMessage(invResponse);
+        
     }
 
     private void processTransaction(Transaction tx) throws VerificationException {
