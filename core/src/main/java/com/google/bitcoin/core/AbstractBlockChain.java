@@ -643,17 +643,18 @@ public abstract class AbstractBlockChain {
                 if (expensiveChecks && cursor.getHeader().getTimeSeconds() <= getMedianTimestampOfRecentBlocks(cursor.getPrev(blockStore), blockStore))
                     throw new VerificationException("Block's timestamp is too early during reorg");
                 TransactionOutputChanges txOutChanges;
-                if (cursor != newChainHead || block == null)
-                    txOutChanges = connectTransactions(cursor);
-                else
-                    txOutChanges = connectTransactions(newChainHead.getHeight(), block);
-                Block cursorBlock = cursor.getHeader();
-                if (shouldVerifyTransactions()) {
+                Block cursorBlock = null;
+                if (cursor != newChainHead || block == null) {
+                    txOutChanges = connectTransactions(cursor);                    
+                    cursorBlock = cursor.getHeader();
                     FullPrunedBlockStore fullPrunedBlockStore = (FullPrunedBlockStore) getBlockStore();
                     StoredUndoableBlock storedUndoableBlock = fullPrunedBlockStore.getUndoBlock(cursor.getHeader().getHash());
                     for (Transaction t : storedUndoableBlock.getTransactions()) {
                         cursorBlock.addTransaction(t);                    
                     }                    
+                } else {
+                    txOutChanges = connectTransactions(newChainHead.getHeight(), block);
+                    cursorBlock = block;
                 }
                 storedNewHead = addToBlockStore(storedNewHead, cursorBlock, txOutChanges);
             }
