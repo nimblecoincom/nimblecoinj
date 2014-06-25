@@ -352,7 +352,7 @@ public class Peer extends PeerSocketHandler {
 
     protected void processMessage(Message m) throws Exception {
         if (!(m instanceof Ping) && ! (m instanceof Pong)) {        
-            log.info("{}: Received message {}", getAddress(), m.getClass());
+            log.info("{}: Received message {} {}", getAddress(), m.getClass().getSimpleName(), m.toString());
         }
         // Allow event listeners to filter the message stream. Listeners are allowed to drop messages by
         // returning null.
@@ -596,7 +596,6 @@ public class Peer extends PeerSocketHandler {
     }
 
     private void processGetData(GetDataMessage getdata) throws BlockStoreException {
-        log.info("{}: Received getdata message: {}", getAddress(), getdata.toString());
         ArrayList<Message> items = new ArrayList<Message>();
         for (ListenerRegistration<PeerEventListener> registration : eventListeners) {
             if (registration.executor != Threading.SAME_THREAD) continue;
@@ -644,7 +643,6 @@ public class Peer extends PeerSocketHandler {
     private Block lastInvNumber500SentAsPartOfBlockChainUpload = null;
     
     private void processGetBlocksMessage(GetBlocksMessage getblocks) throws BlockStoreException {
-        log.info("{}: Received getblocks message: {}", getAddress(), getblocks.toString());
         StoredBlock lastKnownBlockInLocator = null;
         for (Sha256Hash locatorHash: getblocks.getLocator()) {
             StoredBlock storedBlock = blockChain.getBlockStore().get(locatorHash);
@@ -678,7 +676,6 @@ public class Peer extends PeerSocketHandler {
         final Transaction fTx;
         lock.lock();
         try {
-            log.debug("{}: Received tx {}", getAddress(), tx.getHashAsString());
             if (memoryPool != null) {
                 // We may get back a different transaction object.
                 tx = memoryPool.seen(tx, getAddress());
@@ -909,9 +906,6 @@ public class Peer extends PeerSocketHandler {
     }
 
     private void processBlock(Block m) {
-        if (log.isDebugEnabled()) {
-            log.debug("{}: Received broadcast block {}", getAddress(), m.getHashAsString());
-        }
         // Was this block requested by getBlock()?
         if (maybeHandleRequestedData(m)) return;
         if (blockChain == null) {
@@ -973,9 +967,6 @@ public class Peer extends PeerSocketHandler {
 
     // TODO: Fix this duplication.
     private void endFilteredBlock(FilteredBlock m) {
-        if (log.isDebugEnabled()) {
-            log.debug("{}: Received broadcast filtered block {}", getAddress(), m.getHash().toString());
-        }
         /*
         if (!vDownloadData) {
             log.debug("{}: Received block we did not ask for: {}", getAddress(), m.getHash().toString());

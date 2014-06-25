@@ -127,4 +127,11 @@ public abstract class ListMessage extends Message {
         return o.getClass() == this.getClass() &&
                 ((ListMessage)o).items.equals(this.items);
     }
+
+    @Override
+    public String toString() {
+        return "ListMessage [arrayLen=" + arrayLen + ", items=" + items + "]";
+    }
+    
+    
 }
