@@ -328,7 +328,9 @@ public class WalletTool {
             WalletProtobufSerializer loader = new WalletProtobufSerializer();
             if (options.has("ignore-mandatory-extensions"))
                 loader.setRequireMandatoryExtensions(false);
-            wallet = loader.readWallet(new BufferedInputStream(new FileInputStream(walletFile)));
+         	FileInputStream fis=new FileInputStream(walletFile);
+            wallet = loader.readWallet(new BufferedInputStream(fis));
+         	fis.close();
             if (!wallet.getParams().equals(params)) {
                 System.err.println("Wallet does not match requested network parameters: " +
                         wallet.getParams().getId() + " vs " + params.getId());
