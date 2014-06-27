@@ -428,7 +428,7 @@ public class Peer extends PeerSocketHandler {
         } else if (m instanceof Pong) {
             processPong((Pong)m);
         } else if (m instanceof GetBlocksMessage) {
-            processGetBlocksMessage((GetBlocksMessage)m);
+            processGetBlocks((GetBlocksMessage)m);
         } else {
             log.warn("Received unhandled message: {}", m);
         }
@@ -642,10 +642,11 @@ public class Peer extends PeerSocketHandler {
      */
     private Block lastInvNumber500SentAsPartOfBlockChainUpload = null;
     
-    private void processGetBlocksMessage(GetBlocksMessage getblocks) throws BlockStoreException {
+    private void processGetBlocks(GetBlocksMessage getblocks) throws BlockStoreException {
+        BlockStore store = blockChain.getBlockStore();
         StoredBlock lastKnownBlockInLocator = null;
         for (Sha256Hash locatorHash: getblocks.getLocator()) {
-            StoredBlock storedBlock = blockChain.getBlockStore().get(locatorHash);
+            StoredBlock storedBlock = store.get(locatorHash);
             if (storedBlock!=null) {
                 lastKnownBlockInLocator = storedBlock;
                 break;
@@ -655,19 +656,33 @@ public class Peer extends PeerSocketHandler {
             log.warn("{}: no known hash in locator: {}", getAddress(), getblocks.toString());
             return;
         }
+        Sha256Hash stopHash = getblocks.getStopHash();
+        StoredBlock stopBlock;
+        if (stopHash.equals(Sha256Hash.ZERO_HASH)) {
+            stopBlock = blockChain.getChainHead();
+        } else {
+            stopBlock = store.get(stopHash);
+            if (stopBlock==null) {
+                log.warn("{}: no block for stopHash: {}", getAddress(), getblocks.getStopHash());
+                return;
+            }            
+        }         
+        List<StoredBlock> fullResponseList = new LinkedList<StoredBlock>();
+        StoredBlock currentBlock = stopBlock;
+        while (currentBlock!=lastKnownBlockInLocator && 
+               !currentBlock.getHeader().getHash().equals(params.getGenesisBlock().getHash())) {
+            fullResponseList.add(currentBlock);
+            currentBlock = currentBlock.getPrev(store);            
+        }
         InventoryMessage invResponse = new InventoryMessage(params);
-        StoredBlock currentBlock = lastKnownBlockInLocator;
-        for (int i = 0; i < 500; i++) {
-            currentBlock = blockChain.getBlockStore().getNext(currentBlock);
-            if (currentBlock==null) break;
-            if (currentBlock.getHeader().getHash().equals(getblocks.getStopHash())) break;
+        for (int i = 0; i < Math.min(500, fullResponseList.size()); i++) {
+            currentBlock = fullResponseList.get(fullResponseList.size()-i-1);
             invResponse.addBlock(currentBlock.getHeader());
             if (i==499) {
                 lastInvNumber500SentAsPartOfBlockChainUpload = currentBlock.getHeader();
             }            
         }
-        sendMessage(invResponse);
-        
+        sendMessage(invResponse);        
     }
 
     private void processTransaction(Transaction tx) throws VerificationException {
@@ -1319,7 +1334,7 @@ public class Peer extends PeerSocketHandler {
         //   https://en.bitcoin.it/wiki/Protocol_specification#getblocks
         //
         // This is because it requires scanning all the block chain headers, which is very slow. Instead we add the top
-        // 50 block headers. If there is a re-org deeper than that, we'll end up downloading the entire chain. We
+        // 100 block headers. If there is a re-org deeper than that, we'll end up downloading the entire chain. We
         // must always put the genesis block as the first entry.
         BlockStore store = checkNotNull(blockChain).getBlockStore();
         StoredBlock chainHead = blockChain.getChainHead();
