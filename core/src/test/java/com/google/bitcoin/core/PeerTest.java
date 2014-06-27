@@ -93,7 +93,7 @@ public class PeerTest extends TestWithNetworkConnections {
     }
 
     private void connect() throws Exception {
-        connectWithVersion(70001);
+        connectWithVersion(NetworkParameters.PROTOCOL_VERSION);
     }
 
     private void connectWithVersion(int version) throws Exception {
@@ -192,6 +192,119 @@ public class PeerTest extends TestWithNetworkConnections {
         closePeer(peer);
     }
 
+    
+    @Test
+    public void getblocks() throws Exception {
+        // A full end-to-end test of the chain download process, with a new block being solved in the middle.
+        Block b1 = createFakeBlock(blockStore).block;
+        blockChain.add(b1);
+        Block b2 = makeSolvedTestBlock(b1);
+        blockChain.add(b2);
+        Block b3 = makeSolvedTestBlock(b2);
+        blockChain.add(b3);
+
+
+        connect();
+        
+        GetBlocksMessage getblocks = new GetBlocksMessage(unitTestParams, Lists.newArrayList(b1.getHash()), Sha256Hash.ZERO_HASH);
+        inbound(writeTarget, getblocks);
+        InventoryMessage inv = (InventoryMessage)outbound(writeTarget);
+        assertEquals(2, inv.getItems().size());
+        assertEquals(b2.getHash(), inv.getItems().get(0).hash);
+        assertEquals(b3.getHash(), inv.getItems().get(1).hash);
+
+        getblocks = new GetBlocksMessage(unitTestParams, Lists.newArrayList(b1.getHash()), b2.getHash());
+        inbound(writeTarget, getblocks);
+        inv = (InventoryMessage)outbound(writeTarget);
+        assertEquals(1, inv.getItems().size());
+        assertEquals(b2.getHash(), inv.getItems().get(0).hash);
+
+        getblocks = new GetBlocksMessage(unitTestParams, Lists.newArrayList(b1.getHash()), b3.getHash());
+        inbound(writeTarget, getblocks);
+        inv = (InventoryMessage)outbound(writeTarget);
+        assertEquals(2, inv.getItems().size());
+        assertEquals(b2.getHash(), inv.getItems().get(0).hash);
+        assertEquals(b3.getHash(), inv.getItems().get(1).hash);
+        
+        Block b4 = makeSolvedTestBlock(b3);
+        blockChain.add(b4);
+        Block b5 = makeSolvedTestBlock(b4);
+        blockChain.add(b5);
+        
+        Block b2_1 = makeSolvedTestBlock(b2);
+        blockChain.add(b2_1);
+        Block b2_2 = makeSolvedTestBlock(b2_1);
+        blockChain.add(b2_2);
+
+        getblocks = new GetBlocksMessage(unitTestParams, Lists.newArrayList(b1.getHash()), Sha256Hash.ZERO_HASH);
+        inbound(writeTarget, getblocks);
+        inv = (InventoryMessage)outbound(writeTarget);
+        assertEquals(4, inv.getItems().size());
+        assertEquals(b2.getHash(), inv.getItems().get(0).hash);
+        assertEquals(b3.getHash(), inv.getItems().get(1).hash);
+        assertEquals(b4.getHash(), inv.getItems().get(2).hash);
+        assertEquals(b5.getHash(), inv.getItems().get(3).hash);
+        
+        getblocks = new GetBlocksMessage(unitTestParams, Lists.newArrayList(b1.getHash()), b3.getHash());
+        inbound(writeTarget, getblocks);
+        inv = (InventoryMessage)outbound(writeTarget);
+        assertEquals(2, inv.getItems().size());
+        assertEquals(b2.getHash(), inv.getItems().get(0).hash);
+        assertEquals(b3.getHash(), inv.getItems().get(1).hash);
+
+        getblocks = new GetBlocksMessage(unitTestParams, Lists.newArrayList(b1.getHash()), b2_2.getHash());
+        inbound(writeTarget, getblocks);
+        inv = (InventoryMessage)outbound(writeTarget);
+        assertEquals(3, inv.getItems().size());
+        assertEquals(b2.getHash(), inv.getItems().get(0).hash);
+        assertEquals(b2_1.getHash(), inv.getItems().get(1).hash);
+        assertEquals(b2_2.getHash(), inv.getItems().get(2).hash);
+        
+        Block bNotInChain1 = makeSolvedTestBlock(b3);
+        Block bNotInChain2 = makeSolvedTestBlock(bNotInChain1);
+        
+        getblocks = new GetBlocksMessage(unitTestParams, Lists.newArrayList(b2.getHash()), Sha256Hash.ZERO_HASH);
+        inbound(writeTarget, getblocks);
+        inv = (InventoryMessage)outbound(writeTarget);
+        assertEquals(3, inv.getItems().size());
+        assertEquals(b3.getHash(), inv.getItems().get(0).hash);
+        assertEquals(b4.getHash(), inv.getItems().get(1).hash);
+        assertEquals(b5.getHash(), inv.getItems().get(2).hash);
+        
+        getblocks = new GetBlocksMessage(unitTestParams, Lists.newArrayList(bNotInChain1.getHash(), b1.getHash()), Sha256Hash.ZERO_HASH);
+        inbound(writeTarget, getblocks);
+        inv = (InventoryMessage)outbound(writeTarget);
+        assertEquals(4, inv.getItems().size());
+        assertEquals(b2.getHash(), inv.getItems().get(0).hash);
+        assertEquals(b3.getHash(), inv.getItems().get(1).hash);
+        assertEquals(b4.getHash(), inv.getItems().get(2).hash);
+        assertEquals(b5.getHash(), inv.getItems().get(3).hash);
+
+        getblocks = new GetBlocksMessage(unitTestParams, Lists.newArrayList(bNotInChain1.getHash(), bNotInChain2.getHash(), b1.getHash()), Sha256Hash.ZERO_HASH);
+        inbound(writeTarget, getblocks);
+        inv = (InventoryMessage)outbound(writeTarget);
+        assertEquals(4, inv.getItems().size());
+        assertEquals(b2.getHash(), inv.getItems().get(0).hash);
+        assertEquals(b3.getHash(), inv.getItems().get(1).hash);
+        assertEquals(b4.getHash(), inv.getItems().get(2).hash);
+        assertEquals(b5.getHash(), inv.getItems().get(3).hash);
+        
+        /**
+        // Commented out until we can generate 600 blocks. UnitTestParams' inverval is 10, so checkDifficulty fails
+        Block lastBlock = b5;
+        for (int i = 0; i < 600; i++) {
+            lastBlock = makeSolvedTestBlock(lastBlock);
+            blockChain.add(lastBlock);            
+        }
+        getblocks = new GetBlocksMessage(unitTestParams, Lists.newArrayList(b1.getHash()), Sha256Hash.ZERO_HASH);
+        inbound(writeTarget, getblocks);
+        inv = (InventoryMessage)outbound(writeTarget);
+        assertEquals(500, inv.getItems().size());
+        **/
+        
+        closePeer(peer);
+    }
+    
     // Check that an inventory tickle is processed correctly when downloading missing blocks is active.
     @Test
     public void invTickle() throws Exception {
@@ -273,7 +386,7 @@ public class PeerTest extends TestWithNetworkConnections {
         Peer peer2 = new Peer(peerGroup, unitTestParams, ver, new PeerAddress(address), blockChain, memoryPool);
         peer2.addWallet(wallet);
         VersionMessage peerVersion = new VersionMessage(unitTestParams, OTHER_PEER_CHAIN_HEIGHT);
-        peerVersion.clientVersion = 70001;
+        peerVersion.clientVersion = NetworkParameters.PROTOCOL_VERSION;
         peerVersion.localServices = VersionMessage.NODE_NETWORK;
 
         connect();
@@ -527,7 +640,7 @@ public class PeerTest extends TestWithNetworkConnections {
 
     public void recursiveDownload(boolean useNotFound) throws Exception {
         // Using ping or notfound?
-        connectWithVersion(useNotFound ? 70001 : 60001);
+        connectWithVersion(useNotFound ? NetworkParameters.PROTOCOL_VERSION : NetworkParameters.PROTOCOL_VERSION);
         // Check that we can download all dependencies of an unconfirmed relevant transaction from the mempool.
         ECKey to = new ECKey();
 
@@ -652,7 +765,7 @@ public class PeerTest extends TestWithNetworkConnections {
     }
 
     public void timeLockedTransaction(boolean useNotFound) throws Exception {
-        connectWithVersion(useNotFound ? 70001 : 60001);
+        connectWithVersion(useNotFound ? NetworkParameters.PROTOCOL_VERSION : NetworkParameters.PROTOCOL_VERSION);
         // Test that if we receive a relevant transaction that has a lock time, it doesn't result in a notification
         // until we explicitly opt in to seeing those.
         ECKey key = new ECKey();
@@ -727,7 +840,7 @@ public class PeerTest extends TestWithNetworkConnections {
 
     private void checkTimeLockedDependency(boolean shouldAccept, boolean useNotFound) throws Exception {
         // Initial setup.
-        connectWithVersion(useNotFound ? 70001 : 60001);
+        connectWithVersion(useNotFound ? NetworkParameters.PROTOCOL_VERSION : NetworkParameters.PROTOCOL_VERSION);
         ECKey key = new ECKey();
         Wallet wallet = new Wallet(unitTestParams);
         wallet.addKey(key);
