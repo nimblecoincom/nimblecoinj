@@ -11,7 +11,7 @@ To start the testbox:
 `./testbox-start.sh`
 
 To stop the testbox:  
-`./testbox-start.sh`
+`./testbox-stop.sh`
  
 # Utilities
 * `dump1.sh`, `dump2.sh`, etc: Display the wallet for that node
