@@ -16,23 +16,37 @@
 
 package com.google.bitcoin.store;
 
-import com.google.bitcoin.core.*;
-import com.google.common.base.Predicate;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.annotation.Nullable;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Types;
 import java.util.LinkedList;
 import java.util.List;
+
+import javax.annotation.Nullable;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.bitcoin.core.Block;
+import com.google.bitcoin.core.NetworkParameters;
+import com.google.bitcoin.core.ProtocolException;
+import com.google.bitcoin.core.Sha256Hash;
+import com.google.bitcoin.core.StoredBlock;
+import com.google.bitcoin.core.StoredTransactionOutput;
+import com.google.bitcoin.core.StoredUndoableBlock;
+import com.google.bitcoin.core.Transaction;
+import com.google.bitcoin.core.TransactionOutputChanges;
+import com.google.bitcoin.core.VerificationException;
+import com.google.bitcoin.utils.Tree;
+import com.google.common.collect.Lists;
 
 // Originally written for Apache Derby, but its DELETE (and general) performance was awful
 /**
@@ -521,23 +535,27 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
         return get(hash, true);
     }
     
-    @Override
-    public StoredBlock getNext(StoredBlock block) throws BlockStoreException {        
-        int height = block.getHeight() + 1;
+    public void printStoreTree() throws BlockStoreException {        
         maybeConnect();
         PreparedStatement s = null;
+        Tree<Sha256Hash> tree = null;
         try {
-            s = conn.get().prepareStatement("SELECT chainWork, height, header, wasUndoable FROM headers WHERE height = ?");
-            s.setInt(1, height);
+            s = conn.get().prepareStatement("SELECT chainWork, height, header FROM headers");
             ResultSet results = s.executeQuery();
-            if (!results.next()) {
-                return null;
+            while (results.next()) {
+                BigInteger chainWork = new BigInteger(results.getBytes(1));
+                int height = results.getInt(2);
+                Block b = new Block(params, results.getBytes(3));
+                StoredBlock sb = new StoredBlock(b, chainWork, height);
+                if (tree==null) {
+                    tree = new Tree<Sha256Hash>(sb.getHeader().getHash());                
+                } else {
+                    Tree<Sha256Hash> parent = tree.getTree(sb.getHeader().getPrevBlockHash());
+                    parent.addLeaf(sb.getHeader().getHash());
+                }
             }
-            BigInteger chainWork = new BigInteger(results.getBytes(1));
-            height = results.getInt(2);
-            Block b = new Block(params, results.getBytes(3));
-            b.verifyHeader();
-            return new StoredBlock(b, chainWork, height);
+            log.info("Database block tree");
+            log.info(tree.toString());            
         } catch (SQLException ex) {
             throw new BlockStoreException(ex);
         } catch (ProtocolException e) {
@@ -557,8 +575,7 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             }
         }
         
-    }    
-        
+    }        
     
     @Nullable
     public StoredUndoableBlock getUndoBlock(Sha256Hash hash) throws BlockStoreException {

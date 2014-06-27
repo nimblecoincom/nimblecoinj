@@ -42,12 +42,6 @@ public interface BlockStore {
      * parameter. If no such block is found, returns null.
      */
     StoredBlock get(Sha256Hash hash) throws BlockStoreException;
-
-    /**
-     * Returns the next StoredBlock supplied block. 
-     * If no such block is found, returns null.
-     */
-    StoredBlock getNext(StoredBlock block) throws BlockStoreException;
     
     /**
      * Returns the {@link StoredBlock} that represents the top of the chain of greatest total work. Note that this

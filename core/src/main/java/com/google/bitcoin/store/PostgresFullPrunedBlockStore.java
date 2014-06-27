@@ -609,11 +609,6 @@ public class PostgresFullPrunedBlockStore implements FullPrunedBlockStore {
         return get(hash, true);
     }
 
-    @Override
-    public StoredBlock getNext(StoredBlock block) throws BlockStoreException {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }    
-    
     public StoredUndoableBlock getUndoBlock(Sha256Hash hash) throws BlockStoreException {
         maybeConnect();
         PreparedStatement s = null;

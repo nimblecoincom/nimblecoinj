@@ -285,12 +285,6 @@ public class MemoryFullPrunedBlockStore implements FullPrunedBlockStore {
         return storedBlock == null ? null : storedBlock.block;
     }
     
-    @Override
-    public StoredBlock getNext(StoredBlock block) throws BlockStoreException {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }    
-    
-    
     @Nullable
     public synchronized StoredBlock getOnceUndoableStoredBlock(Sha256Hash hash) throws BlockStoreException {
         Preconditions.checkNotNull(blockMap, "MemoryFullPrunedBlockStore is closed");

@@ -230,11 +230,6 @@ public class SPVBlockStore implements BlockStore {
         } finally { lock.unlock(); }
     }
 
-    @Override
-    public StoredBlock getNext(StoredBlock block) throws BlockStoreException {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }    
-    
     protected StoredBlock lastChainHead = null;
 
     public StoredBlock getChainHead() throws BlockStoreException {
