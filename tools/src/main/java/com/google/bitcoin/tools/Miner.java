@@ -59,11 +59,18 @@ public class Miner extends AbstractExecutionThreadService {
                 //System.out.println("Press any key to mine 1 block...");
                 //System.in.read();
                 mine();
-                Thread.sleep(Math.round(new Random().nextFloat()*5000));
+                Thread.sleep(getMillisToSleep());
             } catch (Exception e) {
                 log.error("Exception mining", e);
             }
         }
+    }
+    
+    public long getMillisToSleep(){        
+        double rate = 1d/NetworkParameters.TARGET_SPACING;
+        double result = -1 * Math.log(1 - new Random().nextDouble()) / rate;
+        long millis = Math.round(result*1000);
+        return millis;
     }
 	
 	
