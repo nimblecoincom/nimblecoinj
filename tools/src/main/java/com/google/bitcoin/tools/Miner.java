@@ -171,6 +171,7 @@ public class Miner extends AbstractExecutionThreadService {
 	    Set<Transaction> validTransactions = new HashSet<Transaction>();
 	    for (Transaction transaction : allTransactions) {
             if (!store.hasUnspentOutputs(transaction.getHash(), transaction.getOutputs().size())) {
+                // Transaction was not included in a block that is part of the best chain 
                 validTransactions.add(transaction);
             }
             
