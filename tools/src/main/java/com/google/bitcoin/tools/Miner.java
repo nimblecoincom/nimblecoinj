@@ -10,12 +10,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.bitcoin.core.AbstractBlockChain;
+import com.google.bitcoin.core.AbstractBlockChainListener;
 import com.google.bitcoin.core.Block;
 import com.google.bitcoin.core.ECKey;
 import com.google.bitcoin.core.NetworkParameters;
 import com.google.bitcoin.core.PeerGroup;
 import com.google.bitcoin.core.Sha256Hash;
 import com.google.bitcoin.core.StoredBlock;
+import com.google.bitcoin.core.StoredUndoableBlock;
 import com.google.bitcoin.core.Transaction;
 import com.google.bitcoin.core.TransactionInput;
 import com.google.bitcoin.core.TransactionOutput;
@@ -42,6 +44,7 @@ public class Miner extends AbstractExecutionThreadService {
     private Wallet wallet;
     private FullPrunedBlockStore store; 
     private AbstractBlockChain chain;
+    private boolean newBestBlockArrivedFromAnotherNode = false;
     
     public Miner(NetworkParameters params, PeerGroup peers, Wallet wallet, FullPrunedBlockStore store, AbstractBlockChain chain) {
         this.params = params;
@@ -51,6 +54,41 @@ public class Miner extends AbstractExecutionThreadService {
         this.chain = chain;
     }
 	
+    private class MinerBlockChainListener extends AbstractBlockChainListener {
+        @Override
+        public void notifyNewBestBlock(StoredBlock storedBlock) throws VerificationException {
+            try {
+                boolean isMyBlock = false;
+                StoredUndoableBlock storedUndoableBlock = store.getUndoBlock(storedBlock.getHeader().getHash());
+                for (Transaction tx : storedUndoableBlock.getTransactions()) {
+                    if (tx.isCoinBase() && tx.getOutput(0).isMine(wallet)) {
+                        isMyBlock = true;
+                        break;
+                    }
+                }
+                if (!isMyBlock) {
+                    newBestBlockArrivedFromAnotherNode=true;
+                    log.info("Signaled mining to interrupt because this block arrived: " + storedBlock);                
+                }                
+            } catch (BlockStoreException e) {
+                log.warn("Exception retrieving undoable block: " + storedBlock.getHeader().getHash(), e);                                
+            }
+        }
+    }
+    
+    MinerBlockChainListener minerBlockChainListener = new MinerBlockChainListener();
+    
+    @Override
+    protected void startUp() throws Exception {
+        super.startUp();
+        chain.addListener(minerBlockChainListener);
+    }
+    
+    @Override
+    protected void shutDown() throws Exception {
+        super.shutDown();
+        chain.removeListener(minerBlockChainListener);
+    }
 
     @Override
     protected void run() throws Exception {
@@ -99,7 +137,27 @@ public class Miner extends AbstractExecutionThreadService {
         for (Transaction transaction : validTransactions) {
             newBlock.addTransaction(transaction);
         }       
-        newBlock.solve();
+        log.info("Starting to mine block " + newBlock);
+        newBestBlockArrivedFromAnotherNode = false;
+        while (!newBestBlockArrivedFromAnotherNode) {
+            try {
+                // Is our proof of work valid yet?
+                if (newBlock.checkProofOfWork(false))
+                    break;
+                // No, so increment the nonce and try again.
+                newBlock.setNonce(newBlock.getNonce() + 1);
+                if (newBlock.getNonce() % 100000 == 0 ) {
+                    log.info("Solving block. Nonce: " + newBlock.getNonce());
+                }
+                
+            } catch (VerificationException e) {
+                throw new RuntimeException(e); // Cannot happen.
+            }
+        }
+        if (newBestBlockArrivedFromAnotherNode) {
+            log.info("Interrupted mining because another best block arrived");
+            return;
+        }
         newBlock.verify();
         for (Transaction transaction : validTransactions) {
             peers.getMemoryPool().remove(transaction.getHash());
