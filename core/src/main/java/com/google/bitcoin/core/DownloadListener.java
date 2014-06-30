@@ -39,7 +39,7 @@ public class DownloadListener extends AbstractPeerEventListener {
     public void onChainDownloadStarted(Peer peer, int blocksLeft) {
         startDownload(blocksLeft);
         originalBlocksLeft = blocksLeft;
-        if (blocksLeft == 0) {
+        if (blocksLeft <= 0) {
             doneDownload();
         }
     }
@@ -81,15 +81,14 @@ public class DownloadListener extends AbstractPeerEventListener {
      * @param blocks the number of blocks to download, estimated
      */
     protected void startDownload(int blocks) {
-        if (blocks > 0)
-            log.info("Downloading block chain of size " + blocks + ". " +
-                    (blocks > 1000 ? "This may take a while." : ""));
+        log.info("Downloading block chain of size " + blocks + ". " + (blocks > 1000 ? "This may take a while." : ""));
     }
 
     /**
      * Called when we are done downloading the block chain.
      */
     protected void doneDownload() {
+        log.info("Block chain download completed");
         done.release();
     }
 

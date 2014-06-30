@@ -669,7 +669,7 @@ public class Peer extends PeerSocketHandler {
         }         
         List<StoredBlock> fullResponseList = new LinkedList<StoredBlock>();
         StoredBlock currentBlock = stopBlock;
-        while (currentBlock!=lastKnownBlockInLocator && 
+        while (!currentBlock.equals(lastKnownBlockInLocator) && 
                !currentBlock.getHeader().getHash().equals(params.getGenesisBlock().getHash())) {
             fullResponseList.add(currentBlock);
             currentBlock = currentBlock.getPrev(store);            
@@ -1385,15 +1385,15 @@ public class Peer extends PeerSocketHandler {
         // TODO: peer might still have blocks that we don't have, and even have a heavier
         // chain even if the chain block count is lower.
         final int blocksLeft = getPeerBlockHeightDifference();
+        for (final ListenerRegistration<PeerEventListener> registration : eventListeners) {
+            registration.executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    registration.listener.onChainDownloadStarted(Peer.this, blocksLeft);
+                }
+            });
+        }
         if (blocksLeft >= 0) {
-            for (final ListenerRegistration<PeerEventListener> registration : eventListeners) {
-                registration.executor.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        registration.listener.onChainDownloadStarted(Peer.this, blocksLeft);
-                    }
-                });
-            }
             // When we just want as many blocks as possible, we can set the target hash to zero.
             lock.lock();
             try {
@@ -1401,7 +1401,7 @@ public class Peer extends PeerSocketHandler {
             } finally {
                 lock.unlock();
             }
-        }
+        } 
     }
 
     private class PendingPing {
