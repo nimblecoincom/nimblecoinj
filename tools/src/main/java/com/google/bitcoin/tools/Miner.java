@@ -68,7 +68,7 @@ public class Miner extends AbstractExecutionThreadService {
                 }
                 if (!isMyBlock) {
                     newBestBlockArrivedFromAnotherNode=true;
-                    log.info("Signaled mining to interrupt because this block arrived: " + storedBlock);                
+                    log.info("Signaled mining to interrupt because this block arrived: " + storedBlock.getHeader().getHash());                
                 }                
             } catch (BlockStoreException e) {
                 log.warn("Exception retrieving undoable block: " + storedBlock.getHeader().getHash(), e);                                
