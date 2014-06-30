@@ -62,7 +62,7 @@ Usage: wallet-tool --flags action-name
   --server             Accept incoming connections
   --server-port=...    Used with --server. Don't use default port and start the server at the specified port 
   --miner              Mine blocks
-  
+  --txgen-rate=N       Generate N random tx per second and broadcast them to the network    
 
 >>> WAITING
 You can wait for the condition specified by the --waitfor flag to become true. Transactions and new

@@ -155,7 +155,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         }
         
         public void onTransaction(Peer peer, Transaction t) {
-            broadcastReceivedTransaction(t, peer);
+            broadcastTransactionToAllBut(t, peer);
         };
 
         @Override
@@ -1481,7 +1481,20 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         }
     }
 
-    public void broadcastReceivedTransaction(Transaction tx, Peer peerToSkip) {
+    /**
+     * Broadcast the tx to all the peers
+     * @param tx
+     */
+    public void broadcastTransactionToAll(Transaction tx) {
+        broadcastTransactionToAllBut(tx, null);
+    }
+    
+    /**
+     * Broadcast the tx to all the peers but peerToSkip
+     * @param tx
+     * @param peerToSkip if peerToSkip!=null skips that peer
+     */
+    public void broadcastTransactionToAllBut(Transaction tx, Peer peerToSkip) {
         InventoryMessage inv = new InventoryMessage(params);
         inv.addTransaction(tx);
         for (Peer peer : peers) {

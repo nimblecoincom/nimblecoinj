@@ -243,6 +243,7 @@ public class WalletTool {
         parser.accepts("server");
         parser.accepts("server-port").withRequiredArg();
         parser.accepts("miner");
+        parser.accepts("txgen-rate").withRequiredArg();
         options = parser.parse(args);
 
         final String HELP_TEXT = Resources.toString(WalletTool.class.getResource("wallet-tool-help.txt"), Charsets.UTF_8);
@@ -385,6 +386,9 @@ public class WalletTool {
         if (options.has("miner")) {
             mine();
         }
+        if (options.has("txgen-rate")) {
+            startTransactionGenerator();
+        }
 
 
         if (options.has(waitForFlag)) {
@@ -424,6 +428,23 @@ public class WalletTool {
         }
     }
 
+    private static void startTransactionGenerator() {
+        try {
+            int rate = Integer.valueOf((String) options.valueOf("txgen-rate"));            
+            setup();
+            if (!peers.isRunning()) {
+                peers.startAsync();
+                peers.awaitRunning();                
+            }
+            TransactionGenerator txGenerator = new TransactionGenerator(params, peers, wallet, rate);
+            txGenerator.startAsync();
+            txGenerator.awaitRunning();
+        } catch (BlockStoreException e) {
+            System.err.println("Error reading block chain file " + chainBaseFile + ": " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
     private static void addAddr() {
         String addr = (String) options.valueOf("addr");
         if (addr == null) {
