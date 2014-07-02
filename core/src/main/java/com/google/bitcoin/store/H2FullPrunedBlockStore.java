@@ -544,7 +544,7 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
         Date date = new Date();
         for (int i = 0; i < numberOfPeriods; i++) {
            Date currentPeriodBegin = (Date) date.clone();
-           currentPeriodBegin.setTime(date.getTime() - i * period * 1000);
+           currentPeriodBegin.setTime(date.getTime() - (i+1) * period * 1000);
            staleBlocksPerPeriod.put(currentPeriodBegin, 0);
         }
         
