@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.sql.*;
 import java.util.*;
+import java.util.Date;
 
 /**
  * <p>A full pruned block store using the Postgres database engine. As an added bonus an address index is calculated,
@@ -609,6 +610,11 @@ public class PostgresFullPrunedBlockStore implements FullPrunedBlockStore {
         return get(hash, true);
     }
 
+    @Override
+    public Map<Date, Integer> getStaleBlocks(int period, int maxPeriod) throws BlockStoreException {
+        throw new UnsupportedOperationException("Not implemented yet");
+    }
+    
     public StoredUndoableBlock getUndoBlock(Sha256Hash hash) throws BlockStoreException {
         maybeConnect();
         PreparedStatement s = null;

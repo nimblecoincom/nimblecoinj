@@ -27,8 +27,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import javax.annotation.Nullable;
 
@@ -523,6 +528,71 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
                 }
             }
         }
+    }
+    
+    @Override
+    public Map<Date, Integer> getStaleBlocks(int period, int maxPeriod) throws BlockStoreException {
+        Map<Integer, Integer> staleBlocksPerHeight = new HashMap<Integer , Integer>();
+        Map<Date, Integer> staleBlocksPerPeriod = new TreeMap<Date, Integer>(new Comparator<Date>() {
+            @Override
+            public int compare(Date o1, Date o2) {
+                return o2.compareTo(o1);
+            }
+            
+        });
+        int numberOfPeriods = maxPeriod / period;
+        Date date = new Date();
+        for (int i = 0; i < numberOfPeriods; i++) {
+           Date currentPeriodBegin = (Date) date.clone();
+           currentPeriodBegin.setTime(date.getTime() - i * period * 1000);
+           staleBlocksPerPeriod.put(currentPeriodBegin, 0);
+        }
+        
+        maybeConnect();
+        PreparedStatement s = null;
+        try {
+            s = conn.get().prepareStatement(" SELECT chainWork, height, header FROM headers" + 
+                                            " WHERE height in (SELECT height FROM headers GROUP BY height HAVING count(*)>1)");
+            ResultSet results = s.executeQuery();
+            while (results.next()) {
+                int height = results.getInt(2);
+                if  (staleBlocksPerHeight.get(height) != null) {
+                    Block b = new Block(params, results.getBytes(3));
+                    Date blockDate = b.getTime();
+                    Date blockPeriodBegin = null;
+                    for (Date periodBegin : staleBlocksPerPeriod.keySet()) {
+                        if (periodBegin.before(blockDate)){
+                            blockPeriodBegin = periodBegin;
+                            break;
+                        }
+                    }
+                    if (blockPeriodBegin!=null) {
+                        staleBlocksPerPeriod.put(blockPeriodBegin, staleBlocksPerPeriod.get(blockPeriodBegin)+1);                        
+                    }
+                    staleBlocksPerHeight.put(height, staleBlocksPerHeight.get(height) + 1);
+                } else {
+                    staleBlocksPerHeight.put(height, 1);
+                }
+            }
+        } catch (SQLException ex) {
+            throw new BlockStoreException(ex);
+        } catch (ProtocolException e) {
+            // Corrupted database.
+            throw new BlockStoreException(e);
+        } catch (VerificationException e) {
+            // Should not be able to happen unless the database contains bad
+            // blocks.
+            throw new BlockStoreException(e);
+        } finally {
+            if (s != null) {
+                try {
+                    s.close();
+                } catch (SQLException e) {
+                    throw new BlockStoreException("Failed to close PreparedStatement");
+                }
+            }
+        }
+        return staleBlocksPerPeriod;
     }
     
     @Nullable

@@ -16,12 +16,15 @@
 
 package com.google.bitcoin.store;
 
-import com.google.bitcoin.core.*;
-import com.google.common.base.Predicate;
-import com.google.common.collect.Iterables;
-
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
+import com.google.bitcoin.core.Block;
+import com.google.bitcoin.core.NetworkParameters;
+import com.google.bitcoin.core.Sha256Hash;
+import com.google.bitcoin.core.StoredBlock;
+import com.google.bitcoin.core.VerificationException;
 
 /**
  * Keeps {@link com.google.bitcoin.core.StoredBlock}s in memory. Used primarily for unit testing.
@@ -58,6 +61,11 @@ public class MemoryBlockStore implements BlockStore {
     public synchronized StoredBlock get(Sha256Hash hash) throws BlockStoreException {
         if (blockMap == null) throw new BlockStoreException("MemoryBlockStore is closed");
         return blockMap.get(hash);
+    }
+    
+    @Override
+    public Map<Date, Integer> getStaleBlocks(int period, int maxPeriod) throws BlockStoreException {
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     public StoredBlock getChainHead() throws BlockStoreException {

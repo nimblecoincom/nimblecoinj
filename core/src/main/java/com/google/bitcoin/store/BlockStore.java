@@ -16,6 +16,9 @@
 
 package com.google.bitcoin.store;
 
+import java.util.Date;
+import java.util.Map;
+
 import com.google.bitcoin.core.Sha256Hash;
 import com.google.bitcoin.core.StoredBlock;
 
@@ -51,6 +54,16 @@ public interface BlockStore {
      */
     StoredBlock getChainHead() throws BlockStoreException;
 
+    /**
+     * Retrieves the number of stale blocks
+     * @param period Period (in seconds) to group by. Eg 5, would group results in chunks of 5 seconds
+     * @param maxPeriod The number of seconds to go backwards. Eg 3600, would show the information for the last hour
+     * @return a map with stales blocks per period. The key is a Data with the instant the period begins and the vale is the number of stale blocks 
+     * @throws BlockStoreException
+     */
+    Map<Date,Integer> getStaleBlocks(int period, int maxPeriod) throws BlockStoreException;
+    
+    
     /**
      * Sets the {@link StoredBlock} that represents the top of the chain of greatest total work.
      */

@@ -34,6 +34,7 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
@@ -230,6 +231,11 @@ public class SPVBlockStore implements BlockStore {
         } finally { lock.unlock(); }
     }
 
+    @Override
+    public Map<Date, Integer> getStaleBlocks(int period, int maxPeriod) throws BlockStoreException {
+        throw new UnsupportedOperationException("Not implemented yet");
+    }
+    
     protected StoredBlock lastChainHead = null;
 
     public StoredBlock getChainHead() throws BlockStoreException {

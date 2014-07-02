@@ -5,6 +5,7 @@ Usage: wallet-tool --flags action-name
 
 >>> ACTIONS
   none                 Do nothing, just start a node.
+  dump-stales          Prints the number of stales blocks per minute in the block chain during the last hour
   dump                 Loads and prints the given wallet in textual form to stdout.
   raw-dump             Prints the wallet as a raw protobuf with no parsing or sanity checking applied.
   create               Makes a new wallet in the file specified by --wallet.
@@ -63,6 +64,8 @@ Usage: wallet-tool --flags action-name
   --server-port=...    Used with --server. Don't use default port and start the server at the specified port 
   --miner              Mine blocks
   --txgen-rate=N       Generate N random tx per second and broadcast them to the network    
+  --stales-period=N    Makes dump-stales to show the number of stale blocks per N seconds 
+  --stales-max=N       Makes dump-stales to show only information of the last N seconds
 
 >>> WAITING
 You can wait for the condition specified by the --waitfor flag to become true. Transactions and new

@@ -18,6 +18,7 @@
 package com.google.bitcoin.tools;
 
 import static com.google.common.base.Preconditions.*;
+
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -28,6 +29,7 @@ import java.net.UnknownHostException;
 import java.text.ParseException;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -178,7 +180,8 @@ public class WalletTool {
         SYNC,
         RESET,
         SEND,
-        NONE
+        NONE,
+        DUMP_STALES
     }
 
     public enum WaitForEnum {
@@ -244,6 +247,8 @@ public class WalletTool {
         parser.accepts("server-port").withRequiredArg();
         parser.accepts("miner");
         parser.accepts("txgen-rate").withRequiredArg();
+        parser.accepts("stales-period").withRequiredArg();
+        parser.accepts("stales-max").withRequiredArg();
         options = parser.parse(args);
 
         final String HELP_TEXT = Resources.toString(WalletTool.class.getResource("wallet-tool-help.txt"), Charsets.UTF_8);
@@ -346,6 +351,7 @@ public class WalletTool {
         // What should we do?
         switch (action) {
             case NONE: break;
+            case DUMP_STALES: dumpStales(); break;
             case DUMP: dumpWallet(); break;
             case ADD_KEY: addKey(); break;
             case ADD_ADDR: addAddr(); break;
@@ -958,6 +964,23 @@ public class WalletTool {
         wallet.removeKey(key);
     }
 
+    private static void dumpStales() throws BlockStoreException {
+        setup();
+        int period = 60;
+        if (options.has("stales-period")) {
+            period = Integer.valueOf((String) options.valueOf("stales-period"));
+        }
+        int maxPeriod = 3600;
+        if (options.has("stales-max")) {
+            maxPeriod = Integer.valueOf((String) options.valueOf("stales-max"));
+        }        
+        Map<Date,Integer> map = store.getStaleBlocks(period, maxPeriod);
+        System.out.println("Stale Blocks");
+        for (Date periodBegin : map.keySet()) {
+            System.out.println(periodBegin + " : " + map.get(periodBegin));            
+        }
+    }
+    
     private static void dumpWallet() throws BlockStoreException {
         // Setup to get the chain height so we can estimate lock times, but don't wipe the transactions if it's not
         // there just for the dump case.
