@@ -38,6 +38,7 @@ import net.jcip.annotations.GuardedBy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.bitcoin.params.RegTestParams;
 import com.google.bitcoin.store.BlockStore;
 import com.google.bitcoin.store.BlockStoreException;
 import com.google.bitcoin.store.FullPrunedBlockStore;
@@ -351,6 +352,7 @@ public class Peer extends PeerSocketHandler {
     }
 
     protected void processMessage(Message m) throws Exception {
+        maybeDelay(m);
         if (!(m instanceof Ping) && ! (m instanceof Pong)) {        
             log.info("{}: Received message {} {}", getAddress(), m.getClass().getSimpleName(), m.toString());
         }
@@ -1621,6 +1623,20 @@ public class Peer extends PeerSocketHandler {
      */
     public boolean getInitiatedByPeer() {
         return initiatedByPeer;
+    }
+    
+    /**
+     * Delay reading to emulate real network behavior. Used for testing purposes. 
+     * @param bytes
+     */
+    protected void maybeDelay(Message m) {
+        try {
+            if (RegTestParams.get().equals(params)) {
+                Thread.sleep(150 + m.getMessageSize()/1000);
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
     
     
