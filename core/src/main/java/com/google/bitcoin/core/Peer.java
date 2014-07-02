@@ -1632,7 +1632,7 @@ public class Peer extends PeerSocketHandler {
     protected void maybeDelay(Message m) {
         try {
             if (RegTestParams.get().equals(params)) {
-                Thread.sleep(150 + m.getMessageSize()/1000);
+                Thread.sleep(150 + m.getMessageSize()/10000);
             }
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
