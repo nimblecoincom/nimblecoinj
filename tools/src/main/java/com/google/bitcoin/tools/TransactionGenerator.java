@@ -39,7 +39,8 @@ public class TransactionGenerator extends AbstractExecutionThreadService {
     protected void run() throws Exception {
         while (isRunning()) {
             try {
-                generateTx();
+                peers.waitForPeers(1).get();
+                generateAndBroadcastTx();
                 Thread.sleep(getMillisToSleep());
             } catch (Exception e) {
                 log.error("Exception mining", e);
@@ -54,7 +55,7 @@ public class TransactionGenerator extends AbstractExecutionThreadService {
     }
 	
 	
-	private void generateTx() throws Exception {
+	private void generateAndBroadcastTx() throws Exception {
         Transaction t = new Transaction(params);
         ECKey outputKey = new ECKey();
         BigInteger value = Utils.toNanoCoins(0,1);
