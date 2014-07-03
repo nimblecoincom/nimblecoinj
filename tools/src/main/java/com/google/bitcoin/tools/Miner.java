@@ -20,6 +20,7 @@ import com.google.bitcoin.core.StoredBlock;
 import com.google.bitcoin.core.StoredUndoableBlock;
 import com.google.bitcoin.core.Transaction;
 import com.google.bitcoin.core.TransactionInput;
+import com.google.bitcoin.core.TransactionOutPoint;
 import com.google.bitcoin.core.TransactionOutput;
 import com.google.bitcoin.core.Utils;
 import com.google.bitcoin.core.VerificationException;
@@ -170,9 +171,19 @@ public class Miner extends AbstractExecutionThreadService {
 	private Set<Transaction> filterValidTransactions(Set<Transaction> allTransactions) throws BlockStoreException {
 	    Set<Transaction> validTransactions = new HashSet<Transaction>();
 	    for (Transaction transaction : allTransactions) {
-            if (!store.hasUnspentOutputs(transaction.getHash(), transaction.getOutputs().size())) {
+            if (!store.hasUnspentOutputs(transaction.getHash(), transaction.getOutputs().size())) {                
                 // Transaction was not included in a block that is part of the best chain 
-                validTransactions.add(transaction);
+                boolean allOutPointsAreInTheBestChain = true;
+                for (TransactionInput transactionInput : transaction.getInputs()) {
+                    TransactionOutPoint outPoint = transactionInput.getOutpoint();
+                    if (store.getTransactionOutput(outPoint.getHash(), outPoint.getIndex()) == null) {
+                        allOutPointsAreInTheBestChain = false;
+                        break;
+                    }
+                }
+                if (allOutPointsAreInTheBestChain) {
+                    validTransactions.add(transaction);                    
+                }
             }
             
         }
