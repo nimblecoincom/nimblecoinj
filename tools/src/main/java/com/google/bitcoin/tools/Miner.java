@@ -2,9 +2,10 @@ package com.google.bitcoin.tools;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
-import java.util.HashSet;
+import java.util.Comparator;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeSet;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +31,9 @@ import com.google.bitcoin.script.ScriptOpCodes;
 import com.google.bitcoin.store.BlockStore;
 import com.google.bitcoin.store.BlockStoreException;
 import com.google.bitcoin.store.FullPrunedBlockStore;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
+import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 
 /**
@@ -134,8 +138,8 @@ public class Miner extends AbstractExecutionThreadService {
         
         Block newBlock = new Block(params, NetworkParameters.PROTOCOL_VERSION, prevBlockHash, time, difficultyTarget);
         newBlock.addTransaction(coinbaseTransaction);
-        Set<Transaction> validTransactions = filterValidTransactions(peers.getMemoryPool().getAll());
-        for (Transaction transaction : validTransactions) {
+        Set<Transaction> transactionsToInclude = getTransactionsToInclude(peers.getMemoryPool().getAll());
+        for (Transaction transaction : transactionsToInclude) {
             newBlock.addTransaction(transaction);
         }       
         log.info("Starting to mine block " + newBlock);
@@ -160,7 +164,7 @@ public class Miner extends AbstractExecutionThreadService {
             return;
         }
         newBlock.verify();
-        for (Transaction transaction : validTransactions) {
+        for (Transaction transaction : transactionsToInclude) {
             peers.getMemoryPool().remove(transaction.getHash());
         }
         chain.add(newBlock);
@@ -168,28 +172,38 @@ public class Miner extends AbstractExecutionThreadService {
         peers.broadcastBlock(newBlock);
 	}
 
-	private Set<Transaction> filterValidTransactions(Set<Transaction> allTransactions) throws BlockStoreException {
-	    Set<Transaction> validTransactions = new HashSet<Transaction>();
+	private Set<Transaction> getTransactionsToInclude(Set<Transaction> allTransactions) throws BlockStoreException {
+	    Set<Transaction> transactionsToInclude = new TreeSet<Transaction>(new TransactionPriorityComparator());
 	    for (Transaction transaction : allTransactions) {
             if (!store.hasUnspentOutputs(transaction.getHash(), transaction.getOutputs().size())) {                
-                // Transaction was not included in a block that is part of the best chain 
+                // Transaction was not already included in a block that is part of the best chain 
                 boolean allOutPointsAreInTheBestChain = true;
                 for (TransactionInput transactionInput : transaction.getInputs()) {
                     TransactionOutPoint outPoint = transactionInput.getOutpoint();
                     if (store.getTransactionOutput(outPoint.getHash(), outPoint.getIndex()) == null) {
+                        //Outpoint not in the best chain
                         allOutPointsAreInTheBestChain = false;
                         break;
                     }
                 }
                 if (allOutPointsAreInTheBestChain) {
-                    validTransactions.add(transaction);                    
+                    transactionsToInclude.add(transaction);                    
                 }
             }
             
-        }
-        return validTransactions;
+        }	    
+        return ImmutableSet.copyOf(Iterables.limit(transactionsToInclude, 1000));
     }
 
+    private static class TransactionPriorityComparator implements Comparator<Transaction>{
+        @Override
+        public int compare(Transaction tx1, Transaction tx2) {
+            int updateTimeComparison = tx1.getUpdateTime().compareTo(tx2.getUpdateTime());
+            //If time1==time2, compare by tx hash to make comparator consistent with equals
+            return updateTimeComparison!=0 ? updateTimeComparison : tx1.getHash().compareTo(tx2.getHash());
+        }
+    }
+    	
 
     private long getDifficultyTargetForNewBlock(StoredBlock storedPrev, BlockStore blockStore, NetworkParameters params, long time) throws BlockStoreException {
         if ((storedPrev.getHeight() + 1) % params.getInterval() != 0) {

@@ -22,6 +22,8 @@ import static com.google.common.base.Preconditions.checkState;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.SoftReference;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -196,6 +198,7 @@ public class MemoryPool {
                     // We received a transaction that we have previously seen announced but not downloaded until now.
                     checkNotNull(entry.addresses);
                     entry.tx = new WeakTransactionReference(tx, referenceQueue);
+                    tx.setUpdateTime(new Date());
                     Set<PeerAddress> addrs = entry.addresses;
                     entry.addresses = null;
                     TransactionConfidence confidence = tx.getConfidence();
@@ -212,6 +215,7 @@ public class MemoryPool {
                 log.debug("Provided with a downloaded transaction we didn't see announced yet: {}", tx.getHashAsString());
                 entry = new Entry();
                 entry.tx = new WeakTransactionReference(tx, referenceQueue);
+                tx.setUpdateTime(new Date());
                 memoryPool.put(tx.getHash(), entry);
                 return tx;
             }
@@ -325,7 +329,7 @@ public class MemoryPool {
             lock.unlock();
         }
     }
-    
+
     
     /**
      * Returns true if the TX identified by hash has been seen before (ie, in an inv). Note that a transaction that
