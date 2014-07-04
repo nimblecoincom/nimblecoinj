@@ -467,8 +467,17 @@ public abstract class AbstractBlockChain {
             // to become the new best chain head. This simplifies handling of the re-org in the Wallet class.
             StoredBlock newBlock = storedPrev.build(block);
             int chainWorkComparison = newBlock.getChainWork().compareTo(head.getChainWork());
-            //If the 2 chains have the same work double-the-bet if I mined one of the blocks
-            boolean haveNewBestChain = (chainWorkComparison > 0) || (chainWorkComparison == 0 && block.getTransactions().get(0).getOutput(0).isMine(wallet));
+            //If the 2 chains have the same work select the block with the lowest hash
+            boolean haveNewBestChain = false;
+            if (chainWorkComparison > 0) {
+                haveNewBestChain = true;
+            } else if (chainWorkComparison < 0) {
+                haveNewBestChain = true;                
+            } else {
+                BigInteger newBlockHashBigInteger = newBlock.getHeader().getHash().toBigInteger();
+                BigInteger headHashBigInteger = head.getHeader().getHash().toBigInteger();
+                haveNewBestChain = newBlockHashBigInteger.compareTo(headHashBigInteger) < 0;
+            }
             if (haveNewBestChain) {
                 log.info("Block is causing a re-organize");
             } else {
