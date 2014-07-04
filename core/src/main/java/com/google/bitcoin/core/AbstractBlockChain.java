@@ -148,6 +148,7 @@ public abstract class AbstractBlockChain {
     private double falsePositiveTrend;
     private double previousFalsePositiveRate;
 
+    private Wallet wallet;
 
     /**
      * Constructs a BlockChain connected to the given list of listeners (eg, wallets) and a store.
@@ -169,6 +170,7 @@ public abstract class AbstractBlockChain {
      * wallets is not well tested!
      */
     public void addWallet(Wallet wallet) {
+        this.wallet = wallet;
         addListener(wallet, Threading.SAME_THREAD);
         if (wallet.getLastBlockSeenHeight() != getBestChainHeight()) {
             log.warn("Wallet/chain height mismatch: {} vs {}", wallet.getLastBlockSeenHeight(), getBestChainHeight());
@@ -178,6 +180,9 @@ public abstract class AbstractBlockChain {
 
     /** Removes a wallet from the chain. */
     public void removeWallet(Wallet wallet) {
+        if (this.wallet.equals(wallet)) {
+            this.wallet = null;            
+        }
         removeListener(wallet);
     }
 
@@ -461,7 +466,9 @@ public abstract class AbstractBlockChain {
             // Note that we send the transactions to the wallet FIRST, even if we're about to re-organize this block
             // to become the new best chain head. This simplifies handling of the re-org in the Wallet class.
             StoredBlock newBlock = storedPrev.build(block);
-            boolean haveNewBestChain = newBlock.moreWorkThan(head);
+            int chainWorkComparison = newBlock.getChainWork().compareTo(head.getChainWork());
+            //If the 2 chains have the same work double-the-bet if I mined one of the blocks
+            boolean haveNewBestChain = (chainWorkComparison > 0) || (chainWorkComparison == 0 && block.getTransactions().get(0).getOutput(0).isMine(wallet));
             if (haveNewBestChain) {
                 log.info("Block is causing a re-organize");
             } else {
