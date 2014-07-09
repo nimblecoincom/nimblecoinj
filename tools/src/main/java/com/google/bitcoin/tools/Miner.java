@@ -18,6 +18,7 @@ import com.google.bitcoin.core.NetworkParameters;
 import com.google.bitcoin.core.PeerGroup;
 import com.google.bitcoin.core.Sha256Hash;
 import com.google.bitcoin.core.StoredBlock;
+import com.google.bitcoin.core.StoredTransactionOutput;
 import com.google.bitcoin.core.StoredUndoableBlock;
 import com.google.bitcoin.core.Transaction;
 import com.google.bitcoin.core.TransactionInput;
@@ -33,7 +34,6 @@ import com.google.bitcoin.store.BlockStoreException;
 import com.google.bitcoin.store.FullPrunedBlockStore;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
-import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 
 /**
@@ -164,11 +164,11 @@ public class Miner extends AbstractExecutionThreadService {
             return;
         }
         newBlock.verify();
+        chain.add(newBlock);
+        log.info("Mined block: " + newBlock);
         for (Transaction transaction : transactionsToInclude) {
             peers.getMemoryPool().remove(transaction.getHash());
         }
-        chain.add(newBlock);
-        log.info("Mined block: " + newBlock);
         peers.broadcastBlock(newBlock);
 	}
 
@@ -178,15 +178,23 @@ public class Miner extends AbstractExecutionThreadService {
             if (!store.hasUnspentOutputs(transaction.getHash(), transaction.getOutputs().size())) {                
                 // Transaction was not already included in a block that is part of the best chain 
                 boolean allOutPointsAreInTheBestChain = true;
+                boolean allOutPointsAreMature = true;
                 for (TransactionInput transactionInput : transaction.getInputs()) {
                     TransactionOutPoint outPoint = transactionInput.getOutpoint();
-                    if (store.getTransactionOutput(outPoint.getHash(), outPoint.getIndex()) == null) {
+                    StoredTransactionOutput storedOutPoint = store.getTransactionOutput(outPoint.getHash(), outPoint.getIndex());
+                    if (storedOutPoint == null) {
                         //Outpoint not in the best chain
                         allOutPointsAreInTheBestChain = false;
                         break;
                     }
+                    if ((chain.getBestChainHeight()+1) - storedOutPoint.getHeight() < params.getSpendableCoinbaseDepth()) {
+                        //Outpoint is a non mature coinbase
+                        allOutPointsAreMature = false;
+                        break;
+                    }
+                    
                 }
-                if (allOutPointsAreInTheBestChain) {
+                if (allOutPointsAreInTheBestChain && allOutPointsAreMature) {
                     transactionsToInclude.add(transaction);                    
                 }
             }
