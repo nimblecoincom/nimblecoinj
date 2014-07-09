@@ -643,8 +643,7 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
                     throw new BlockStoreException("Failed to close PreparedStatement");
                 }
             }
-        }
-        
+        }        
     }        
     
     @Nullable
