@@ -50,6 +50,7 @@ public class Miner extends AbstractExecutionThreadService {
     private FullPrunedBlockStore store; 
     private AbstractBlockChain chain;
     private boolean newBestBlockArrivedFromAnotherNode = false;
+    private int numberOfMinersInParallelToEmulate = 0;
     
     public Miner(NetworkParameters params, PeerGroup peers, Wallet wallet, FullPrunedBlockStore store, AbstractBlockChain chain) {
         this.params = params;
@@ -109,11 +110,19 @@ public class Miner extends AbstractExecutionThreadService {
         }
     }
     
-    public long getMillisToSleep(){        
-        double rate = 1d/NetworkParameters.TARGET_SPACING;
-        double result = -1 * Math.log(1 - new Random().nextDouble()) / rate;
-        long millis = Math.round(result*1000);
-        return millis;
+    public long getMillisToSleep() {
+        if (numberOfMinersInParallelToEmulate>0) {
+            double rate = 1d/NetworkParameters.TARGET_SPACING;
+            double result = -1 * Math.log(1 - new Random().nextDouble()) / rate;
+            long millis = Math.round(result*1000);
+            return millis * numberOfMinersInParallelToEmulate;            
+        } else {
+            return 0;
+        }
+    }
+    
+    public void setNumberOfMinersInParallelToEmulate(int numberOfMinersInParallelToEmulate) {
+        this.numberOfMinersInParallelToEmulate = numberOfMinersInParallelToEmulate;
     }
 	
 	

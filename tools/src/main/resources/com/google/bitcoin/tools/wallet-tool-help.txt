@@ -63,6 +63,7 @@ Usage: wallet-tool --flags action-name
   --server             Accept incoming connections
   --server-port=...    Used with --server. Don't use default port and start the server at the specified port 
   --miner              Mine blocks
+  --miner-emulate=N    Delay mining to emulate N miners in parallel
   --txgen-rate=N       Generate N random tx per second and broadcast them to the network    
   --stales-period=N    Makes dump-stales to show the number of stale blocks per N seconds 
   --stales-max=N       Makes dump-stales to show only information of the last N seconds

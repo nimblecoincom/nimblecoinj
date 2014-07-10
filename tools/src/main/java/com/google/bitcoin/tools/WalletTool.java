@@ -246,6 +246,7 @@ public class WalletTool {
         parser.accepts("server");
         parser.accepts("server-port").withRequiredArg();
         parser.accepts("miner");
+        parser.accepts("miner-emulate").withRequiredArg();
         parser.accepts("txgen-rate").withRequiredArg();
         parser.accepts("stales-period").withRequiredArg();
         parser.accepts("stales-max").withRequiredArg();
@@ -426,6 +427,10 @@ public class WalletTool {
                 peers.awaitRunning();                
             }
             Miner miner = new Miner(params, peers, wallet, (FullPrunedBlockStore) store, chain);
+            if (!options.has("miner-emulate")) {
+                int numberOfMinersInParallelToEmulate = Integer.valueOf((String) options.valueOf("miner-emulate"));            
+                miner.setNumberOfMinersInParallelToEmulate(numberOfMinersInParallelToEmulate);                
+            }
             miner.startAsync();
             miner.awaitRunning();
         } catch (BlockStoreException e) {
@@ -769,7 +774,7 @@ public class WalletTool {
             store = new SPVBlockStore(params, chainBaseFile);
             chain = new BlockChain(params, wallet, store);
         } else if (mode == ValidationMode.FULL) {
-            FullPrunedBlockStore s = new H2FullPrunedBlockStore(params, chainBaseFile.getAbsolutePath(), 5000);
+            FullPrunedBlockStore s = new H2FullPrunedBlockStore(params, chainBaseFile.getAbsolutePath(), 500000);
             store = s;
             chain = new FullPrunedBlockChain(params, wallet, s);
         }
