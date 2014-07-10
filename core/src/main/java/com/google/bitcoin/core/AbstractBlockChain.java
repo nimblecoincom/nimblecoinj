@@ -472,7 +472,7 @@ public abstract class AbstractBlockChain {
             if (chainWorkComparison > 0) {
                 haveNewBestChain = true;
             } else if (chainWorkComparison < 0) {
-                haveNewBestChain = true;                
+                haveNewBestChain = false;                
             } else {
                 BigInteger newBlockHashBigInteger = newBlock.getHeader().getHash().toBigInteger();
                 BigInteger headHashBigInteger = head.getHeader().getHash().toBigInteger();
