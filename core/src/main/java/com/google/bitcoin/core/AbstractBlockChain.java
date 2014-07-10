@@ -150,6 +150,8 @@ public abstract class AbstractBlockChain {
 
     private Wallet wallet;
 
+    private boolean useLowerHashPolicy = true;
+
     /**
      * Constructs a BlockChain connected to the given list of listeners (eg, wallets) and a store.
      */
@@ -467,16 +469,23 @@ public abstract class AbstractBlockChain {
             // to become the new best chain head. This simplifies handling of the re-org in the Wallet class.
             StoredBlock newBlock = storedPrev.build(block);
             int chainWorkComparison = newBlock.getChainWork().compareTo(head.getChainWork());
-            //If the 2 chains have the same work select the block with the lowest hash
             boolean haveNewBestChain = false;
             if (chainWorkComparison > 0) {
                 haveNewBestChain = true;
             } else if (chainWorkComparison < 0) {
                 haveNewBestChain = false;                
             } else {
-                BigInteger newBlockHashBigInteger = newBlock.getHeader().getHash().toBigInteger();
-                BigInteger headHashBigInteger = head.getHeader().getHash().toBigInteger();
-                haveNewBestChain = newBlockHashBigInteger.compareTo(headHashBigInteger) < 0;
+                if (useLowerHashPolicy) {
+                    // Lowest hash policy
+                    // make haveNewBestChain true if the new block hash is lower
+                    BigInteger newBlockHashBigInteger = newBlock.getHeader().getHash().toBigInteger();
+                    BigInteger headHashBigInteger = head.getHeader().getHash().toBigInteger();
+                    haveNewBestChain = newBlockHashBigInteger.compareTo(headHashBigInteger) < 0;                    
+                } else {
+                    // double the bet policy
+                    // make haveNewBestChain true if the new block was mined by me
+                    haveNewBestChain = block.getTransactions().get(0).getOutput(0).isMine(wallet);                    
+                }
             }
             if (haveNewBestChain) {
                 log.info("Block is causing a re-organize");
@@ -1083,5 +1092,9 @@ public abstract class AbstractBlockChain {
         falsePositiveRate = 0;
         falsePositiveTrend = 0;
         previousFalsePositiveRate = 0;
+    }
+    
+    public void setUseLowerHashPolicy(boolean useLowerHashPolicy) {
+        this.useLowerHashPolicy = useLowerHashPolicy;
     }
 }

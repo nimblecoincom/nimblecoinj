@@ -67,6 +67,7 @@ Usage: wallet-tool --flags action-name
   --txgen-rate=N       Generate N random tx per second and broadcast them to the network    
   --stales-period=N    Makes dump-stales to show the number of stale blocks per N seconds 
   --stales-max=N       Makes dump-stales to show only information of the last N seconds
+  --competitive-policy=LOWER_HASH/DOUBLE_THE_BET Best chain selection method for competitive blocks with the same chain work. Default is LOWER_HASH 
 
 >>> WAITING
 You can wait for the condition specified by the --waitfor flag to become true. Transactions and new

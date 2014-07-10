@@ -110,6 +110,7 @@ public class WalletTool {
     private static File chainBaseFile;
     private static PeerDiscovery discovery;
     private static ValidationMode mode;
+    private static CompetitivePolicy competitivePolicy;
     private static String password;
     private static org.bitcoin.protocols.payments.Protos.PaymentRequest paymentRequest;
 
@@ -202,6 +203,12 @@ public class WalletTool {
         SPV
     }
 
+    
+    public enum CompetitivePolicy {
+        LOWER_HASH,
+        DOUBLE_THE_BET
+    }
+    
     public static void main(String[] args) throws Exception {
         OptionParser parser = new OptionParser();
         parser.accepts("help");
@@ -250,6 +257,11 @@ public class WalletTool {
         parser.accepts("txgen-rate").withRequiredArg();
         parser.accepts("stales-period").withRequiredArg();
         parser.accepts("stales-max").withRequiredArg();
+        OptionSpec<CompetitivePolicy> competitivePolicyFlag = parser.accepts("competitive-policy")
+                .withRequiredArg()
+                .ofType(CompetitivePolicy.class)
+                .defaultsTo(CompetitivePolicy.LOWER_HASH);
+
         options = parser.parse(args);
 
         final String HELP_TEXT = Resources.toString(WalletTool.class.getResource("wallet-tool-help.txt"), Charsets.UTF_8);
@@ -294,6 +306,8 @@ public class WalletTool {
                 throw new RuntimeException("Unreachable.");
         }
         mode = modeFlag.value(options);
+
+        competitivePolicy = competitivePolicyFlag.value(options);
 
         // Allow the user to override the name of the chain used.
         if (options.has(chainFlag)) {
@@ -778,6 +792,13 @@ public class WalletTool {
             store = s;
             chain = new FullPrunedBlockChain(params, wallet, s);
         }
+        
+        if (competitivePolicy == CompetitivePolicy.LOWER_HASH) {
+            chain.setUseLowerHashPolicy(true);
+        } else if (competitivePolicy == CompetitivePolicy.DOUBLE_THE_BET) {
+            chain.setUseLowerHashPolicy(false);            
+        }
+        
         // This will ensure the wallet is saved when it changes.
         wallet.autosaveToFile(walletFile, 200, TimeUnit.MILLISECONDS, null);
         if (!options.has("server")) {
