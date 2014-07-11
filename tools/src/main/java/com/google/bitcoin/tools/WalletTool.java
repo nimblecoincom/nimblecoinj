@@ -433,7 +433,6 @@ public class WalletTool {
 
     private static void mine() {
         try {
-
             checkArgument(mode.equals(ValidationMode.FULL), "Miner should be started in full mode");
             setup();
             if (!peers.isRunning()) {
@@ -441,7 +440,7 @@ public class WalletTool {
                 peers.awaitRunning();                
             }
             Miner miner = new Miner(params, peers, wallet, (FullPrunedBlockStore) store, chain);
-            if (!options.has("miner-emulate")) {
+            if (options.has("miner-emulate")) {
                 int numberOfMinersInParallelToEmulate = Integer.valueOf((String) options.valueOf("miner-emulate"));            
                 miner.setNumberOfMinersInParallelToEmulate(numberOfMinersInParallelToEmulate);                
             }
