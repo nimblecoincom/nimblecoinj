@@ -30,7 +30,7 @@ import java.util.logging.Logger;
  * A Java logging formatter that writes more compact output than the default.
  */
 public class BriefLogFormatter extends Formatter {
-    private static final MessageFormat messageFormat = new MessageFormat("{3,date,hh:mm:ss} {0} {1}.{2}: {4}\n{5}");
+    private static final MessageFormat messageFormat = new MessageFormat("{3,date,hh:mm:ss.SSS} {0} {1}.{2}: {4}\n{5}");
 
     // OpenJDK made a questionable, backwards incompatible change to the Logger implementation. It internally uses
     // weak references now which means simply fetching the logger and changing its configuration won't work. We must
