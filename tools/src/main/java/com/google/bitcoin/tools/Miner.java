@@ -117,8 +117,6 @@ public class Miner extends AbstractExecutionThreadService {
             double result = -1 * Math.log(1 - new Random().nextDouble()) / rate;
             long millis = Math.round(result*1000);
             return millis * numberOfMinersInParallelToEmulate;            
-        } else if (params.equals(RegTestParams.get())){
-            return 200;
         } else {
             return 0;
         }
@@ -265,7 +263,7 @@ public class Miner extends AbstractExecutionThreadService {
         */
 
         long newDifficultyCompact = Utils.encodeCompactBits(newDifficulty);
-        log.debug("newDifficultyCompact: " + Long.toHexString(newDifficultyCompact));
+        log.info("Difficulty changed to : " + Long.toHexString(newDifficultyCompact));
         return newDifficultyCompact;
         
 	}
