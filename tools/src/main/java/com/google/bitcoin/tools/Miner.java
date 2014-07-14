@@ -27,6 +27,7 @@ import com.google.bitcoin.core.TransactionOutput;
 import com.google.bitcoin.core.Utils;
 import com.google.bitcoin.core.VerificationException;
 import com.google.bitcoin.core.Wallet;
+import com.google.bitcoin.params.RegTestParams;
 import com.google.bitcoin.script.Script;
 import com.google.bitcoin.script.ScriptOpCodes;
 import com.google.bitcoin.store.BlockStore;
@@ -116,6 +117,8 @@ public class Miner extends AbstractExecutionThreadService {
             double result = -1 * Math.log(1 - new Random().nextDouble()) / rate;
             long millis = Math.round(result*1000);
             return millis * numberOfMinersInParallelToEmulate;            
+        } else if (params.equals(RegTestParams.get())){
+            return 200;
         } else {
             return 0;
         }

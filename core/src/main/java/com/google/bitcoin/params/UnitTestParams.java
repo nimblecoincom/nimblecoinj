@@ -34,6 +34,8 @@ public class UnitTestParams extends NetworkParameters {
         p2shHeader = 196;
         acceptableAddressCodes = new int[] { addressHeader, p2shHeader };
         proofOfWorkLimit = new BigInteger("00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16);
+        genesisPubKey = new byte[]{2, -23, 45, 110, 36, 25, -85, -34, 43, 83, -42, 52, 7, -127, -18, -57, 52, -18, -20, -82, 125, -21, -33, 80, 116, 49, 29, -74, 12, 85, 55, -36, -50};
+        genesisBlock = createGenesis();
         genesisBlock.setTime(System.currentTimeMillis() / 1000);
         genesisBlock.setDifficultyTarget(Block.EASIEST_DIFFICULTY_TARGET);
         genesisBlock.solve();

@@ -27,7 +27,6 @@ import com.google.bitcoin.core.Utils;
  * Network parameters for the regression test mode of bitcoind in which all blocks are trivially solvable.
  */
 public class RegTestParams extends NetworkParameters {
-    private static final BigInteger PROOF_OF_WORK_LIMIT = new BigInteger("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16);
 
     public RegTestParams() {
         super();
@@ -39,15 +38,18 @@ public class RegTestParams extends NetworkParameters {
         acceptableAddressCodes = new int[] { addressHeader, p2shHeader };
         interval = INTERVAL;
         targetTimespan = TARGET_TIMESPAN;
-        proofOfWorkLimit = Utils.decodeCompactBits(0x1f00ffffL);
+        proofOfWorkLimit = Utils.decodeCompactBits(0x200fffffL);
         dumpedPrivateKeyHeader = 239;
-        genesisBlock.setTime(1398701303L);
-        genesisBlock.setDifficultyTarget(0x1f00ffffL);
-        genesisBlock.setNonce(61715);
+        genesisPubKey = new byte[]{2, -89, -16, -84, 59, -17, -13, -114, 124, 51, 13, -9, -97, 104, -74, -25, -61, 12, -28, 98, 70, 120, 16, 113, -110, -102, -109, 81, -64, 54, -44, -86, 19};
+        genesisBlock = createGenesis();
+        genesisBlock.setTime(1405357765L);
+        genesisBlock.setDifficultyTarget(0x200fffffL);
+        genesisBlock.setNonce(8);
         spendableCoinbaseDepth = 100;
         subsidyDecreaseBlockCount = 210000;
+
         String genesisHash = genesisBlock.getHashAsString();
-        checkState(genesisHash.equals("0000ea3f810a0dd1226a2a6ac69539e53b81e85d91f6c58e051b6ee02abe2e95"));
+        checkState(genesisHash.equals("0134924192cd6c2bdb9b39a65327e29f5dc76fcf9d13862d48f8da5e8fd0d75d"));
         dnsSeeds = null;
     }
 

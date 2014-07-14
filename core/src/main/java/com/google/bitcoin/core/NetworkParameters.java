@@ -95,26 +95,26 @@ public abstract class NetworkParameters implements Serializable {
     protected String[] dnsSeeds;
     protected Map<Integer, Sha256Hash> checkpoints = new HashMap<Integer, Sha256Hash>();
 
+    protected byte[] genesisPubKey; 
+    
     protected NetworkParameters() {
         alertSigningKey = SATOSHI_KEY;
-        genesisBlock = createGenesis(this);
     }
 
-    private static Block createGenesis(NetworkParameters n) {
-        Block genesisBlock = new Block(n);
-        Transaction t = new Transaction(n);
+    protected Block createGenesis() {
+        Block genesisBlock = new Block(this);
+        Transaction t = new Transaction(this);
         try {
         	String genesisMessage = "Life is what happens to you while you’re busy making other plans";
         	char[] chars = genesisMessage.toCharArray();
         	byte[] bytes = new byte[chars.length];
         	for(int i=0;i<bytes.length;i++) bytes[i] = (byte) chars[i];
-            t.addInput(new TransactionInput(n, t, bytes));
+            t.addInput(new TransactionInput(this, t, bytes));
             
             ByteArrayOutputStream scriptPubKeyBytes = new ByteArrayOutputStream();            
-            byte[] genesisPubKey = new byte[]{2, -23, 45, 110, 36, 25, -85, -34, 43, 83, -42, 52, 7, -127, -18, -57, 52, -18, -20, -82, 125, -21, -33, 80, 116, 49, 29, -74, 12, 85, 55, -36, -50};
             Script.writeBytes(scriptPubKeyBytes, genesisPubKey);
             scriptPubKeyBytes.write(ScriptOpCodes.OP_CHECKSIG);
-            t.addOutput(new TransactionOutput(n, t, Utils.toNanoCoins(50, 0), scriptPubKeyBytes.toByteArray()));
+            t.addOutput(new TransactionOutput(this, t, Utils.toNanoCoins(50, 0), scriptPubKeyBytes.toByteArray()));
         } catch (Exception e) {
             // Cannot happen.
             throw new RuntimeException(e);

@@ -11,6 +11,7 @@ import com.google.bitcoin.core.TransactionInput;
 import com.google.bitcoin.core.TransactionOutput;
 import com.google.bitcoin.core.Utils;
 import com.google.bitcoin.params.MainNetParams;
+import com.google.bitcoin.params.RegTestParams;
 import com.google.bitcoin.params.TestNet3Params;
 import com.google.bitcoin.script.Script;
 import com.google.bitcoin.script.ScriptOpCodes;
@@ -27,12 +28,14 @@ public class GenesisBlockGenerator {
         System.out.println("public key " + Arrays.toString(key.getPubKey()));
         System.out.println("private key " + Arrays.toString(key.getPrivKeyBytes()));
         System.out.println("-- Main --");		
-        generateGenesisForNetwork(MainNetParams.get(), key);
+        generateGenesisForNetwork(MainNetParams.get(), key, 0x1f00ffffL);
         System.out.println("-- Test --");		
-        generateGenesisForNetwork(TestNet3Params.get(), key);
+        generateGenesisForNetwork(TestNet3Params.get(), key, 0x1f00ffffL);
+        System.out.println("-- RegTest --");       
+        generateGenesisForNetwork(RegTestParams.get(), key, 0x200fffffL);
     }
 	
-	public static void generateGenesisForNetwork(NetworkParameters params, ECKey key) throws Exception {
+	public static void generateGenesisForNetwork(NetworkParameters params, ECKey key, long difficultyTarget) throws Exception {
 		Transaction t = new Transaction(params);
     	String genesisMessage = "Life is what happens to you while you’re busy making other plans";
     	char[] chars = genesisMessage.toCharArray();
@@ -47,7 +50,7 @@ public class GenesisBlockGenerator {
 
 
         Block genesisBlockMain = new Block(params);
-        genesisBlockMain.setDifficultyTarget(0x1f00ffffL);
+        genesisBlockMain.setDifficultyTarget(difficultyTarget);
         genesisBlockMain.setNonce(0);
         genesisBlockMain.addTransaction(t);;
         genesisBlockMain.solve();

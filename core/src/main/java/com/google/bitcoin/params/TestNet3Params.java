@@ -40,6 +40,8 @@ public class TestNet3Params extends NetworkParameters {
         p2shHeader = 196;
         acceptableAddressCodes = new int[] { addressHeader, p2shHeader };
         dumpedPrivateKeyHeader = 239;
+        genesisPubKey = new byte[]{2, -23, 45, 110, 36, 25, -85, -34, 43, 83, -42, 52, 7, -127, -18, -57, 52, -18, -20, -82, 125, -21, -33, 80, 116, 49, 29, -74, 12, 85, 55, -36, -50};
+        genesisBlock = createGenesis();
         genesisBlock.setTime(1398701303L);
         genesisBlock.setDifficultyTarget(0x1f00ffffL);
         genesisBlock.setNonce(61715);
