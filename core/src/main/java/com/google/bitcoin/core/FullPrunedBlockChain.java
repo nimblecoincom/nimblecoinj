@@ -16,21 +16,28 @@
 
 package com.google.bitcoin.core;
 
-import com.google.bitcoin.script.Script;
-import com.google.bitcoin.store.BlockStoreException;
-import com.google.bitcoin.store.FullPrunedBlockStore;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static com.google.common.base.Preconditions.checkState;
 
-import javax.annotation.Nullable;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
-import java.util.concurrent.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 
-import static com.google.common.base.Preconditions.checkState;
+import javax.annotation.Nullable;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.bitcoin.script.Script;
+import com.google.bitcoin.store.BlockStoreException;
+import com.google.bitcoin.store.FullPrunedBlockStore;
 
 /**
  * <p>A FullPrunedBlockChain works in conjunction with a {@link FullPrunedBlockStore} to verify all the rules of the
@@ -189,8 +196,18 @@ public class FullPrunedBlockChain extends AbstractBlockChain {
                         TransactionInput in = tx.getInputs().get(index);
                         StoredTransactionOutput prevOut = blockStore.getTransactionOutput(in.getOutpoint().getHash(),
                                                                                           in.getOutpoint().getIndex());
-                        if (prevOut == null)
+                        if (prevOut == null){
+//                            Uncomment this to debug
+//                            log.error("Exception: Attempted to spend a non-existent or already spent output!");
+//                            log.error("TransactionInput : " + in);
+//                            log.error("Thread.dumpStack()");
+//                            Thread.dumpStack();
+//                            log.error("new Throwable().printStackTrace()");
+//                            new Throwable().printStackTrace();
+//                            log.error("new Exception() : ", new Exception());
+//                            System.exit(1);
                             throw new VerificationException("Attempted to spend a non-existent or already spent output!");
+                        }
                         // Coinbases can't be spent until they mature, to avoid re-orgs destroying entire transaction
                         // chains. The assumption is there will ~never be re-orgs deeper than the spendable coinbase
                         // chain depth.
