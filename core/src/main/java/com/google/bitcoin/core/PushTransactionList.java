@@ -59,18 +59,22 @@ public class PushTransactionList extends Message {
         super(params, msg, 0, parseLazy, parseRetain, length);
     }
 
-    public PushTransactionList(NetworkParameters params, Block block, Collection<Transaction> transactions) {
+    public Sha256Hash getBlockHash() {
+        return blockHash;
+    }
+    
+    public PushTransactionList(NetworkParameters params, Block block) {
         super(params);
         this.blockHash = block.getHash();
         this.transactionHashes = new ArrayList<Sha256Hash>();
         length = Sha256Hash.HASH_SIZE_IN_BYTES; //the size of a block hash
         length += 1; //length of 0 varint (empty transaction list);
-        for (Transaction tx : transactions)
+        for (Transaction tx : block.getTransactions())
             this.addTransaction(tx.getHash());
         
     }
 
-    public List<Sha256Hash> getTransactionHashe() {
+    public List<Sha256Hash> getTransactionHashes() {
         maybeParse();
         return Collections.unmodifiableList(transactionHashes);
     }

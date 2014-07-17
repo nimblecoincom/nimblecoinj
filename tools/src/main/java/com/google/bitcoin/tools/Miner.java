@@ -27,7 +27,6 @@ import com.google.bitcoin.core.TransactionOutput;
 import com.google.bitcoin.core.Utils;
 import com.google.bitcoin.core.VerificationException;
 import com.google.bitcoin.core.Wallet;
-import com.google.bitcoin.params.RegTestParams;
 import com.google.bitcoin.script.Script;
 import com.google.bitcoin.script.ScriptOpCodes;
 import com.google.bitcoin.store.BlockStore;
@@ -179,7 +178,7 @@ public class Miner extends AbstractExecutionThreadService {
         for (Transaction transaction : transactionsToInclude) {
             peers.getMemoryPool().remove(transaction.getHash());
         }
-        peers.broadcastBlock(newBlock);
+        peers.broadcastMinedBlock(newBlock);
 	}
 
 	private Set<Transaction> getTransactionsToInclude(Set<Transaction> allTransactions) throws BlockStoreException {

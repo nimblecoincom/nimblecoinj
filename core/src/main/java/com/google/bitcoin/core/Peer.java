@@ -379,6 +379,10 @@ public class Peer extends PeerSocketHandler {
             // This is sent to us when we did a getdata on some transactions that aren't in the peers memory pool.
             // Because NotFoundMessage is a subclass of InventoryMessage, the test for it must come before the next.
             processNotFoundMessage((NotFoundMessage) m);
+        } else if (m instanceof PushHeader) {
+            processPushHeader((PushHeader) m);
+        } else if (m instanceof PushTransactionList) {
+            processPushTransactionList((PushTransactionList) m);
         } else if (m instanceof InventoryMessage) {
             processInv((InventoryMessage) m);
         } else if (m instanceof Block) {
@@ -513,6 +517,97 @@ public class Peer extends PeerSocketHandler {
             // useful, we just swallow the error here.
             log.error("Failed to check signature: bug in platform libraries?", t);
         }
+    }
+    
+    
+    private void processPushHeader(PushHeader m) {
+        if (blockChain == null) {
+            // Can happen if we are receiving unrequested data, or due to programmer error.
+            log.warn("Received pushheader when Peer is not configured with a chain.");
+            return;
+         }
+  
+        try {
+            Block header = m.getBlockHeader();
+            if (blockChain.add(header)) {
+                // The block was successfully linked into the chain.
+                peerGroup.broadcastMessage(m, this);
+            } else {
+                lock.lock();
+                try {
+                    if (downloadBlockBodies) {
+                        final Block orphanRoot = checkNotNull(blockChain.getOrphanRoot(m.getHash()));
+                        blockChainDownloadLocked(orphanRoot.getHash());
+                    } else {
+                        log.info("Did not start chain download on solved block due to in-flight header download.");
+                    }
+                } finally {
+                    lock.unlock();
+                }
+            }
+                
+        } catch (VerificationException e) {
+            log.warn("Block header verification failed", e);
+        } catch (PrunedException e) {
+            // Unreachable when in SPV mode.
+            throw new RuntimeException(e);
+        }
+    }
+    
+
+    private void processPushTransactionList(PushTransactionList m) {
+        try {
+            if (blockChain == null) {
+                // Can happen if we are receiving unrequested data, or due to programmer error.
+                log.warn("Received pushtxlist when Peer is not configured with a chain.");
+                return;
+             }
+
+            peerGroup.broadcastMessage(m, this);
+            
+            Sha256Hash blockHash = m.getBlockHash();
+            List<Sha256Hash> transactionHashes = m.getTransactionHashes();
+            List<Transaction> transactions = new ArrayList<Transaction>();
+            
+            GetDataMessage getdata = new GetDataMessage(params);
+    
+            for (Sha256Hash transactionHash : transactionHashes) {
+                // Only download the transaction if we are the first peer that saw it be advertised. Other peers will also
+                // see it be advertised in inv packets asynchronously, they co-ordinate via the memory pool. We could
+                // potentially download transactions faster by always asking every peer for a tx when advertised, as remote
+                // peers run at different speeds. However to conserve bandwidth on mobile devices we try to only download a
+                // transaction once. This means we can miss broadcasts if the peer disconnects between sending us an inv and
+                // sending us the transaction: currently we'll never try to re-fetch after a timeout.
+                if (memoryPool.maybeWasSeen(transactionHash)) {
+                    // Some other peer already announced this so don't download.
+                    Transaction transaction = memoryPool.get(transactionHash);  
+                    transactions.add(transaction);
+                } else {
+                    log.debug("{}: getdata on tx {}", getAddress(), transactionHash);
+                    getdata.addItem(new InventoryItem(InventoryItem.Type.Transaction, transactionHash));
+                }
+                // This can trigger transaction confidence listeners.
+                memoryPool.seen(transactionHash, this.getAddress());
+            }
+    
+            if (!getdata.getItems().isEmpty()) {
+                // This will cause us to receive a bunch of block or tx messages.
+                sendMessage(getdata);
+            }
+            
+            Block block = blockChain.getBlockStore().get(blockHash).getHeader();
+            for (Transaction transaction : transactions) {
+                block.addTransaction(transaction);
+            }
+            
+            blockChain.add(block);
+        } catch (PrunedException e) {
+            throw new RuntimeException(e);
+        } catch (BlockStoreException e) {
+            throw new RuntimeException(e);
+        }        
+
+                        
     }
 
     private void processHeaders(HeadersMessage m) throws ProtocolException {

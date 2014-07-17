@@ -1457,6 +1457,35 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     }
 
     /**
+     * Broadcast a message to all peers but peerToSkip 
+     */
+    public void broadcastMessage(Message message, Peer peerToSkip) {
+        for (Peer peer : peers) {
+            try {
+                if (peerToSkip==null || !peer.equals(peerToSkip)) {
+                    log.info("{}: Sending message {}", peer.getAddress(), message.getClass());                    
+                    peer.sendMessage(message);                    
+                }
+            } catch (Exception e) {
+                log.error("Caught exception sending {} to {}", message, peer, e);
+            }
+        }        
+    }
+    
+    /**
+     * Broadcast a block I just mined using pushheader and pushtxlist
+     */
+    public void broadcastMinedBlock(Block block) {
+        PushHeader pushHeader = new PushHeader(params, block);
+        broadcastMessage(pushHeader, null);
+
+        PushTransactionList pushTransactionList = new PushTransactionList(params, block);
+        broadcastMessage(pushTransactionList, null);
+    }
+
+
+    
+    /**
      * Sends an inv to all the peers announcing the block
      */
     public void broadcastBlock(Block block) {
@@ -1469,16 +1498,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     public void broadcastBlock(Block block, Peer peerToSkip) {
         InventoryMessage inv = new InventoryMessage(params);
         inv.addBlock(block);
-        for (Peer peer : peers) {
-            try {
-                if (peerToSkip==null || !peer.equals(peerToSkip)) {
-                    log.info("{}: Sending message {}", peer.getAddress(), inv.getClass());                    
-                    peer.sendMessage(inv);                    
-                }
-            } catch (Exception e) {
-                log.error("Caught exception sending {} to {}", inv, peer, e);
-            }
-        }
+        broadcastMessage(inv, peerToSkip);
     }
 
     /**
@@ -1497,15 +1517,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     public void broadcastTransactionToAllBut(Transaction tx, Peer peerToSkip) {
         InventoryMessage inv = new InventoryMessage(params);
         inv.addTransaction(tx);
-        for (Peer peer : peers) {
-            try {
-                if (peerToSkip==null || !peer.equals(peerToSkip)) {
-                    peer.sendMessage(inv);                    
-                }
-            } catch (Exception e) {
-                log.error("Caught exception sending {} to {}", inv, peer, e);
-            }
-        }
+        broadcastMessage(inv, peerToSkip);
     }
     
     
