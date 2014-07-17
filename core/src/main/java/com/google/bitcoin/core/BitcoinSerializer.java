@@ -71,6 +71,8 @@ public class BitcoinSerializer {
         names.put(NotFoundMessage.class, "notfound");
         names.put(MemoryPoolMessage.class, "mempool");
         names.put(RejectMessage.class, "reject");
+        names.put(PushHeader.class, "pushheader");
+        names.put(PushTransactionList.class, "pushtxlist");
     }
 
     /**
