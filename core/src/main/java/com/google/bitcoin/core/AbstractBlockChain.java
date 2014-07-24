@@ -362,7 +362,10 @@ public abstract class AbstractBlockChain {
             // Quick check for duplicates to avoid an expensive check further down (in findSplit). This can happen a lot
             // when connecting orphan transactions due to the dumb brute force algorithm we use.
             if (block.equals(getChainHead().getHeader())) {
-                return true;
+                if(!shouldVerifyTransactions() || block.getTransactions()==null || ((FullPrunedBlockStore)blockStore).getUndoBlock(getChainHead().getHeader().getHash())!=null) {
+                    // If this is not a full node or supplied block does not have transactions or stored block already has transactions 
+                    return true;                    
+                }
             }
             if (tryConnecting && orphanBlocks.containsKey(block.getHash())) {
                 return false;
@@ -378,7 +381,10 @@ public abstract class AbstractBlockChain {
             // Check for already-seen block, but only for full pruned mode, where the DB is
             // more likely able to handle these queries quickly.
             if (shouldVerifyTransactions() && blockStore.get(block.getHash()) != null) {
-                return true;
+                if(block.getTransactions()==null || ((FullPrunedBlockStore)blockStore).getUndoBlock(block.getHash())!=null) {
+                    // If supplied block does not have transactions or stored block already has transactions 
+                    return true;                    
+                }
             }
 
             // Does this block contain any transactions we might care about? Check this up front before verifying the
@@ -448,7 +454,7 @@ public abstract class AbstractBlockChain {
         }
         
         StoredBlock head = getChainHead();
-        if (storedPrev.equals(head)) {
+        if (storedPrev.equals(head) || block.getHash().equals(head.getHeader().getHash())) {
             if (filtered && filteredTxn.size() > 0)  {
                 log.debug("Block {} connects to top of best chain with {} transaction(s) of which we were sent {}",
                         block.getHashAsString(), filteredTxHashList.size(), filteredTxn.size());

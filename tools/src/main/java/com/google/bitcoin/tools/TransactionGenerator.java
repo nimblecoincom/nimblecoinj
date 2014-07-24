@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.bitcoin.core.ECKey;
+import com.google.bitcoin.core.MemoryPool;
 import com.google.bitcoin.core.NetworkParameters;
 import com.google.bitcoin.core.PeerGroup;
 import com.google.bitcoin.core.Transaction;
@@ -25,7 +26,6 @@ public class TransactionGenerator extends AbstractExecutionThreadService {
     private NetworkParameters params; 
     private PeerGroup peers;
     private Wallet wallet;
-
     private int numberOfTxPerSecondToGenerate;
 
     public TransactionGenerator(NetworkParameters params, PeerGroup peers, Wallet wallet, int numberOfTxPerSecondToGenerate) {
@@ -33,6 +33,7 @@ public class TransactionGenerator extends AbstractExecutionThreadService {
         this.peers = peers;
         this.wallet = wallet;
         this.numberOfTxPerSecondToGenerate = numberOfTxPerSecondToGenerate;
+        
     }
 	
     @Override
@@ -71,6 +72,7 @@ public class TransactionGenerator extends AbstractExecutionThreadService {
         wallet.completeTx(req);
         t = req.tx;   // Not strictly required today.
         wallet.commitTx(t);
+        peers.getMemoryPool().intern(t);
         peers.broadcastTransactionToAll(t);
  
 	}
