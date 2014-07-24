@@ -1476,7 +1476,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
      * Broadcast a block I just mined using pushheader and pushtxlist
      */
     public void broadcastMinedBlock(Block block) {
-        PushHeader pushHeader = new PushHeader(params, block);
+        PushHeader pushHeader = new PushHeader(params, block.cloneAsHeader());
         broadcastMessage(pushHeader, null);
 
         PushTransactionList pushTransactionList = new PushTransactionList(params, block);

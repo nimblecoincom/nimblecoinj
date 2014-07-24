@@ -125,8 +125,9 @@ public abstract class AbstractBlockChain {
         final Map<Sha256Hash, Transaction> filteredTxn;
         OrphanBlock(Block block, @Nullable List<Sha256Hash> filteredTxHashes, @Nullable Map<Sha256Hash, Transaction> filteredTxn) {
             final boolean filtered = filteredTxHashes != null && filteredTxn != null;
-            Preconditions.checkArgument((block.transactions == null && filtered)
-                                        || (block.transactions != null && !filtered));
+//            Check no longer valid since PushHeaders
+//            Preconditions.checkArgument((block.transactions == null && filtered)
+//                                        || (block.transactions != null && !filtered));
             if (!shouldVerifyTransactions())
                 this.block = block.cloneAsHeader();
             else
@@ -367,9 +368,12 @@ public abstract class AbstractBlockChain {
                 return false;
             }
 
+            /*
+            This is no longer valid since we receive PushHeader when a block is mined
             // If we want to verify transactions (ie we are running with full blocks), verify that block has transactions
             if (shouldVerifyTransactions() && block.transactions == null)
                 throw new VerificationException("Got a block header while running in full-block mode");
+            */    
 
             // Check for already-seen block, but only for full pruned mode, where the DB is
             // more likely able to handle these queries quickly.
@@ -380,9 +384,9 @@ public abstract class AbstractBlockChain {
             // Does this block contain any transactions we might care about? Check this up front before verifying the
             // blocks validity so we can skip the merkle root verification if the contents aren't interesting. This saves
             // a lot of time for big blocks.
-            boolean contentsImportant = shouldVerifyTransactions();
+            boolean contentsImportant = false;
             if (block.transactions != null) {
-                contentsImportant = contentsImportant || containsRelevantTransactions(block);
+                contentsImportant = shouldVerifyTransactions() || containsRelevantTransactions(block);
             }
 
             // Prove the block is internally valid: hash is lower than target, etc. This only checks the block contents
@@ -437,8 +441,7 @@ public abstract class AbstractBlockChain {
         // Check that we aren't connecting a block that fails a checkpoint check
         if (!params.passesCheckpoint(storedPrev.getHeight() + 1, block.getHash()))
             throw new VerificationException("Block failed checkpoint lockin at " + (storedPrev.getHeight() + 1));
-        if (shouldVerifyTransactions()) {
-            checkNotNull(block.transactions);
+        if (shouldVerifyTransactions() && block.transactions!=null) {
             for (Transaction tx : block.transactions)
                 if (!tx.isFinal(storedPrev.getHeight() + 1, block.getTimeSeconds()))
                    throw new VerificationException("Block contains non-final transaction");
@@ -456,7 +459,7 @@ public abstract class AbstractBlockChain {
             
             // This block connects to the best known block, it is a normal continuation of the system.
             TransactionOutputChanges txOutChanges = null;
-            if (shouldVerifyTransactions())
+            if (shouldVerifyTransactions() && block.transactions!=null)
                 txOutChanges = connectTransactions(storedPrev.getHeight() + 1, block);
             StoredBlock newStoredBlock = addToBlockStore(storedPrev, block, txOutChanges);
             setChainHead(newStoredBlock);
@@ -991,15 +994,29 @@ public abstract class AbstractBlockChain {
     }
 
     /** Returns true if the given block is currently in the orphan blocks list. */
-    public boolean isOrphan(Sha256Hash block) {
+    public boolean isOrphan(Sha256Hash blockHash) {
         lock.lock();
         try {
-            return orphanBlocks.containsKey(block);
+            return orphanBlocks.containsKey(blockHash);
         } finally {
             lock.unlock();
         }
     }
-
+    
+    /**
+     * Return the orphan block given its hash
+     * @param blockHash The o
+     * @return
+     */
+    public Block getOrphanBlock(Sha256Hash blockHash) {
+        lock.lock();
+        try {
+            return orphanBlocks.get(blockHash).block;
+        } finally {
+            lock.unlock();
+        }
+    }
+    
     /**
      * Returns an estimate of when the given block will be reached, assuming a perfect 10 minute average for each
      * block. This is useful for turning transaction lock times into human readable times. Note that a height in

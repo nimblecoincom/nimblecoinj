@@ -175,9 +175,6 @@ public class Miner extends AbstractExecutionThreadService {
         newBlock.verify();
         chain.add(newBlock);
         log.info("Mined block: " + newBlock);
-        for (Transaction transaction : transactionsToInclude) {
-            peers.getMemoryPool().remove(transaction.getHash());
-        }
         peers.broadcastMinedBlock(newBlock);
 	}
 

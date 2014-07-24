@@ -556,20 +556,20 @@ public class Peer extends PeerSocketHandler {
     
 
     private void processPushTransactionList(PushTransactionList m) {
-        try {
             if (blockChain == null) {
                 // Can happen if we are receiving unrequested data, or due to programmer error.
                 log.warn("Received pushtxlist when Peer is not configured with a chain.");
                 return;
-             }
+            }
 
             peerGroup.broadcastMessage(m, this);
             
-            Sha256Hash blockHash = m.getBlockHash();
+            final Sha256Hash blockHash = m.getBlockHash();
             List<Sha256Hash> transactionHashes = m.getTransactionHashes();
-            List<Transaction> transactions = new ArrayList<Transaction>();
             
             GetDataMessage getdata = new GetDataMessage(params);
+    
+            List<ListenableFuture<Transaction>> futures = Lists.newArrayList();
     
             for (Sha256Hash transactionHash : transactionHashes) {
                 // Only download the transaction if we are the first peer that saw it be advertised. Other peers will also
@@ -578,36 +578,68 @@ public class Peer extends PeerSocketHandler {
                 // peers run at different speeds. However to conserve bandwidth on mobile devices we try to only download a
                 // transaction once. This means we can miss broadcasts if the peer disconnects between sending us an inv and
                 // sending us the transaction: currently we'll never try to re-fetch after a timeout.
-                if (memoryPool.maybeWasSeen(transactionHash)) {
+                if (memoryPool.get(transactionHash)!=null) {
                     // Some other peer already announced this so don't download.
-                    Transaction transaction = memoryPool.get(transactionHash);  
-                    transactions.add(transaction);
+                    Transaction transaction = memoryPool.get(transactionHash);
+                    futures.add(Futures.immediateFuture(transaction));
                 } else {
                     log.debug("{}: getdata on tx {}", getAddress(), transactionHash);
-                    getdata.addItem(new InventoryItem(InventoryItem.Type.Transaction, transactionHash));
+                    getdata.addTransaction(transactionHash);
+	                GetDataRequest req = new GetDataRequest();
+	                req.hash = transactionHash;
+	                req.future = SettableFuture.create();
+	                futures.add(req.future);
+	                getDataFutures.add(req);
+                    
                 }
                 // This can trigger transaction confidence listeners.
                 memoryPool.seen(transactionHash, this.getAddress());
             }
+    
+            ListenableFuture<List<Transaction>> successful = Futures.successfulAsList(futures);
     
             if (!getdata.getItems().isEmpty()) {
                 // This will cause us to receive a bunch of block or tx messages.
                 sendMessage(getdata);
             }
             
-            Block block = blockChain.getBlockStore().get(blockHash).getHeader();
-            for (Transaction transaction : transactions) {
-                block.addTransaction(transaction);
-            }
-            
-            blockChain.add(block);
-        } catch (PrunedException e) {
-            throw new RuntimeException(e);
-        } catch (BlockStoreException e) {
-            throw new RuntimeException(e);
-        }        
+            Futures.addCallback(successful, new FutureCallback<List<Transaction>>() {
+                public void onSuccess(List<Transaction> transactions) {
+                    log.info("{}: Transactions download complete for PushTransactionList!", getAddress());
 
-                        
+                    try {
+                        if (!blockChain.isOrphan(blockHash)) {
+                            StoredBlock storedBlock = blockChain.getBlockStore().get(blockHash);
+                            //If block was not yet inserted, do nothing
+                            if (storedBlock!=null) {
+                                Block block = storedBlock.getHeader();
+                                for (Transaction transaction : transactions) {
+                                    block.addTransaction(transaction);
+                                }                        
+                                blockChain.add(block);                                
+                            }
+                        } else {
+                            Block block = blockChain.getOrphanBlock(blockHash);
+                            // If the transaction were already set, do nothing-
+                            if (block.getTransactions()==null) {                                
+                                for (Transaction transaction : transactions) {
+                                    block.addTransaction(transaction);
+                                }                                                        
+                            }
+                        }
+                    } catch (PrunedException e) {
+                        throw new RuntimeException(e);
+                    } catch (BlockStoreException e) {
+                        throw new RuntimeException(e);
+                    }        
+
+                }
+
+                public void onFailure(Throwable throwable) {
+                    log.error("Could not download transactions of block {}", blockHash);
+                    log.error("Error was: ", throwable);
+                }
+            });
     }
 
     private void processHeaders(HeadersMessage m) throws ProtocolException {

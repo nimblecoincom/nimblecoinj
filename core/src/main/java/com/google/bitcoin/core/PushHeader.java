@@ -73,4 +73,9 @@ public class PushHeader extends Message {
     public Block getBlockHeader() {
         return blockHeader;
     }
+    
+    @Override
+    public Sha256Hash getHash() {
+        return blockHeader.getHash();
+    }
 }
