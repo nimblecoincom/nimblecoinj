@@ -555,17 +555,29 @@ public class Peer extends PeerSocketHandler {
     }
     
 
-    private void processPushTransactionList(PushTransactionList m) {
+    private void processPushTransactionList(PushTransactionList m) throws BlockStoreException {
             if (blockChain == null) {
                 // Can happen if we are receiving unrequested data, or due to programmer error.
                 log.warn("Received pushtxlist when Peer is not configured with a chain.");
                 return;
             }
 
+            final Sha256Hash blockHash = m.getBlockHash();
+            final StoredBlock storedBlock = blockChain.getBlockStore().get(blockHash);
+            if (storedBlock==null) {
+                log.warn("Received pushtxlist but the pushheader not arrived yet.");
+                return;                
+            }
+            List<Sha256Hash> transactionHashes = m.getTransactionHashes();
+            
+            if (!storedBlock.getHeader().getMerkleRoot().equals(MerkleTreeUtils.calculateHashesMerkleRoot(transactionHashes))) {
+                log.warn("pushtxlist's merkle root does not match pushheader's merkle root .");
+                return;                
+            }
+            
+
             peerGroup.broadcastMessage(m, this);
             
-            final Sha256Hash blockHash = m.getBlockHash();
-            List<Sha256Hash> transactionHashes = m.getTransactionHashes();
             
             GetDataMessage getdata = new GetDataMessage(params);
     
@@ -609,15 +621,11 @@ public class Peer extends PeerSocketHandler {
 
                     try {
                         if (!blockChain.isOrphan(blockHash)) {
-                            StoredBlock storedBlock = blockChain.getBlockStore().get(blockHash);
-                            //If block was not yet inserted, do nothing
-                            if (storedBlock!=null) {
-                                Block block = storedBlock.getHeader();
-                                for (Transaction transaction : transactions) {
-                                    block.addTransaction(transaction);
-                                }                        
-                                blockChain.add(block);                                
-                            }
+                            Block block = storedBlock.getHeader();
+                            for (Transaction transaction : transactions) {
+                                block.addTransaction(transaction);
+                            }                        
+                            blockChain.add(block);                                
                         } else {
                             Block block = blockChain.getOrphanBlock(blockHash);
                             // If the transaction were already set, do nothing-
@@ -628,8 +636,6 @@ public class Peer extends PeerSocketHandler {
                             }
                         }
                     } catch (PrunedException e) {
-                        throw new RuntimeException(e);
-                    } catch (BlockStoreException e) {
                         throw new RuntimeException(e);
                     }        
 
