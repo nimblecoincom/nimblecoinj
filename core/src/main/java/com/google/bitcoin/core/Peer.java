@@ -555,7 +555,7 @@ public class Peer extends PeerSocketHandler {
     }
     
 
-    private void processPushTransactionList(PushTransactionList m) throws BlockStoreException {
+    private void processPushTransactionList(final PushTransactionList m) throws BlockStoreException {
             if (blockChain == null) {
                 // Can happen if we are receiving unrequested data, or due to programmer error.
                 log.warn("Received pushtxlist when Peer is not configured with a chain.");
@@ -574,10 +574,6 @@ public class Peer extends PeerSocketHandler {
                 log.warn("pushtxlist's merkle root does not match pushheader's merkle root .");
                 return;                
             }
-            
-
-            peerGroup.broadcastMessage(m, this);
-            
             
             GetDataMessage getdata = new GetDataMessage(params);
     
@@ -621,6 +617,7 @@ public class Peer extends PeerSocketHandler {
 
                     try {
                         if (!blockChain.isOrphan(blockHash)) {
+                            peerGroup.broadcastMessage(m, Peer.this);
                             Block block = storedBlock.getHeader();
                             for (Transaction transaction : transactions) {
                                 block.addTransaction(transaction);
