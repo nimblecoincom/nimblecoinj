@@ -676,21 +676,29 @@ public abstract class AbstractBlockChain {
                 cursor = it.next();
                 if (expensiveChecks && cursor.getHeader().getTimeSeconds() <= getMedianTimestampOfRecentBlocks(cursor.getPrev(blockStore), blockStore))
                     throw new VerificationException("Block's timestamp is too early during reorg");
-                TransactionOutputChanges txOutChanges;
+                TransactionOutputChanges txOutChanges = null;
                 Block cursorBlock = null;
                 if (cursor != newChainHead || block == null) {
-                    txOutChanges = connectTransactions(cursor);                    
                     cursorBlock = cursor.getHeader();
                     FullPrunedBlockStore fullPrunedBlockStore = (FullPrunedBlockStore) getBlockStore();
                     StoredUndoableBlock storedUndoableBlock = fullPrunedBlockStore.getUndoBlock(cursor.getHeader().getHash());
-                    for (Transaction t : storedUndoableBlock.getTransactions()) {
-                        cursorBlock.addTransaction(t);                    
-                    }                    
+                    if (storedUndoableBlock!=null) {
+                        txOutChanges = connectTransactions(cursor);                    
+                        for (Transaction t : storedUndoableBlock.getTransactions()) {
+                            cursorBlock.addTransaction(t);                    
+                        }                        
+                    }
                 } else {
-                    txOutChanges = connectTransactions(newChainHead.getHeight(), block);
+                    if (block.getTransactions()!=null && !block.getTransactions().isEmpty()) {
+                        txOutChanges = connectTransactions(newChainHead.getHeight(), block);                        
+                    }
                     cursorBlock = block;
                 }
-                storedNewHead = addToBlockStore(storedNewHead, cursorBlock, txOutChanges);
+                if (cursorBlock.getTransactions()!=null && !block.getTransactions().isEmpty()) {
+                    storedNewHead = addToBlockStore(storedNewHead, cursorBlock, txOutChanges);                    
+                } else {
+                    storedNewHead = addToBlockStore(storedNewHead, cursorBlock);                                        
+                }
             }
         } else {
             // (Finally) write block to block store

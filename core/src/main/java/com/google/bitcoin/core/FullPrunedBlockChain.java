@@ -101,7 +101,11 @@ public class FullPrunedBlockChain extends AbstractBlockChain {
     protected StoredBlock addToBlockStore(StoredBlock storedPrev, Block newBlock)
             throws BlockStoreException, VerificationException {
         StoredBlock newStoredBlock = storedPrev.build(newBlock);
-        blockStore.put(newStoredBlock, new StoredUndoableBlock(newStoredBlock.getHeader().getHash(), newBlock.transactions));
+        if (newBlock.transactions!=null) {
+            blockStore.put(newStoredBlock, new StoredUndoableBlock(newStoredBlock.getHeader().getHash(), newBlock.transactions));            
+        } else {
+            blockStore.put(newStoredBlock);                        
+        }
         return newStoredBlock;
     }
 
