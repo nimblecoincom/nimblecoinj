@@ -16,12 +16,9 @@
 
 package com.google.bitcoin.core;
 
-import static com.google.common.base.Preconditions.checkArgument;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -33,6 +30,7 @@ public class PushTransactionList extends Message {
     private static final long serialVersionUID = -3625238502771381841L;
 
     private Sha256Hash blockHash;
+    private Transaction coinbaseTransaction;
     private long arrayLen;
     protected List<Sha256Hash> transactionHashes;
 
@@ -69,14 +67,23 @@ public class PushTransactionList extends Message {
         this.transactionHashes = new ArrayList<Sha256Hash>();
         length = Sha256Hash.HASH_SIZE_IN_BYTES; //the size of a block hash
         length += 1; //length of 0 varint (empty transaction list);
-        for (Transaction tx : block.getTransactions())
-            this.addTransaction(tx.getHash());
+        for (Transaction tx : block.getTransactions()) {
+            this.addTransaction(tx.getHash());          
+            if (tx.isCoinBase()) {
+                this.coinbaseTransaction = tx;
+                length += tx.getMessageSize();
+            }
+        }
         
     }
 
     public List<Sha256Hash> getTransactionHashes() {
         maybeParse();
         return Collections.unmodifiableList(transactionHashes);
+    }
+    
+    public Transaction getCoinbaseTransaction() {
+        return coinbaseTransaction;
     }
 
     public void addTransaction(Sha256Hash txHash) {
@@ -86,7 +93,7 @@ public class PushTransactionList extends Message {
         length += VarInt.sizeOf(transactionHashes.size()) + Sha256Hash.HASH_SIZE_IN_BYTES;
     }
 
-    public void removeItem(int index) {
+    public void removeTransaction(int index) {
         unCache();
         length -= VarInt.sizeOf(transactionHashes.size());
         transactionHashes.remove(index);
@@ -97,6 +104,10 @@ public class PushTransactionList extends Message {
     protected void parseLite() throws ProtocolException {
         cursor = offset;
         blockHash = readHash();
+        coinbaseTransaction = new Transaction(params, bytes, cursor, this, parseLazy, parseRetain, UNKNOWN_LENGTH);
+        // Label the transaction as coming from the P2P network, so code that cares where we first saw it knows.
+        coinbaseTransaction.getConfidence().setSource(TransactionConfidence.Source.NETWORK);
+        cursor += coinbaseTransaction.getMessageSize();        
         arrayLen = readVarInt();
         if (arrayLen > MAX_ITEMS)
             throw new ProtocolException("Too many items in pushtxlist message: " + arrayLen);
@@ -107,6 +118,10 @@ public class PushTransactionList extends Message {
     public void parse() throws ProtocolException {
         cursor = offset;
         blockHash = readHash();
+        coinbaseTransaction = new Transaction(params, bytes, cursor, this, parseLazy, parseRetain, UNKNOWN_LENGTH);
+        // Label the transaction as coming from the P2P network, so code that cares where we first saw it knows.
+        coinbaseTransaction.getConfidence().setSource(TransactionConfidence.Source.NETWORK);
+        cursor += coinbaseTransaction.getMessageSize();        
         arrayLen = readVarInt();
         if (arrayLen > MAX_ITEMS)
             throw new ProtocolException("Too many items in PUSHTXLIST message: " + arrayLen);
@@ -125,6 +140,7 @@ public class PushTransactionList extends Message {
     @Override
     public void bitcoinSerializeToStream(OutputStream stream) throws IOException {
         stream.write(Utils.reverseBytes(blockHash.getBytes()));
+        coinbaseTransaction.bitcoinSerialize(stream);
         stream.write(new VarInt(transactionHashes.size()).encode());
         for (Sha256Hash txHash : transactionHashes) {
             stream.write(Utils.reverseBytes(txHash.getBytes()));
@@ -133,10 +149,11 @@ public class PushTransactionList extends Message {
 
     @Override
     public String toString() {
-        return "PushTransactionList [blockHash=" + blockHash + ", arrayLen="
-                + arrayLen + ", transactionHashes=" + transactionHashes + "]";
+        return "PushTransactionList [blockHash=" + blockHash
+                + ", coinbaseTransaction=" + coinbaseTransaction
+                + ", arrayLen=" + arrayLen + ", transactionHashes="
+                + transactionHashes + "]";
     }
-
 
     @Override
     public boolean equals(Object obj) {
@@ -154,6 +171,11 @@ public class PushTransactionList extends Message {
                 return false;
         } else if (!blockHash.equals(other.blockHash))
             return false;
+        if (coinbaseTransaction == null) {
+            if (other.coinbaseTransaction != null)
+                return false;
+        } else if (!coinbaseTransaction.equals(other.coinbaseTransaction))
+            return false;
         if (transactionHashes == null) {
             if (other.transactionHashes != null)
                 return false;
@@ -161,4 +183,8 @@ public class PushTransactionList extends Message {
             return false;
         return true;
     }
+
+    
+    
+    
 }

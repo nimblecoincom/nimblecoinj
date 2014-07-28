@@ -575,6 +575,8 @@ public class Peer extends PeerSocketHandler {
                 return;                
             }
             
+            processTransaction(m.getCoinbaseTransaction());
+            
             GetDataMessage getdata = new GetDataMessage(params);
     
             List<ListenableFuture<Transaction>> futures = Lists.newArrayList();
