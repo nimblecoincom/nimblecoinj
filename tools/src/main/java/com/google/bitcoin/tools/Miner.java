@@ -3,6 +3,7 @@ package com.google.bitcoin.tools;
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
@@ -63,9 +64,17 @@ public class Miner extends AbstractExecutionThreadService {
     private class MinerBlockChainListener extends AbstractBlockChainListener {
         @Override
         public void notifyNewBestBlock(StoredBlock storedBlock) throws VerificationException {
+            handleNewBestBlock(storedBlock);
+        }
+        @Override
+        public void reorganize(StoredBlock splitPoint, List<StoredBlock> oldBlocks, List<StoredBlock> newBlocks) throws VerificationException {
+            handleNewBestBlock(newBlocks.get(newBlocks.size()-1));
+        }
+
+        private void handleNewBestBlock(StoredBlock newBestStoredBlock) {
             try {
                 boolean isMyBlock = false;
-                StoredUndoableBlock storedUndoableBlock = store.getUndoBlock(storedBlock.getHeader().getHash());
+                StoredUndoableBlock storedUndoableBlock = store.getUndoBlock(newBestStoredBlock.getHeader().getHash());
                 for (Transaction tx : storedUndoableBlock.getTransactions()) {
                     if (tx.isCoinBase() && tx.getOutput(0).isMine(wallet)) {
                         isMyBlock = true;
@@ -74,12 +83,13 @@ public class Miner extends AbstractExecutionThreadService {
                 }
                 if (!isMyBlock) {
                     newBestBlockArrivedFromAnotherNode=true;
-                    log.info("Signaled mining to interrupt because this block arrived: " + storedBlock.getHeader().getHash());                
+                    log.info("Signaled mining to interrupt because this block arrived: " + newBestStoredBlock.getHeader().getHash());                
                 }                
             } catch (BlockStoreException e) {
-                log.warn("Exception retrieving undoable block: " + storedBlock.getHeader().getHash(), e);                                
+                log.warn("Exception retrieving undoable block: " + newBestStoredBlock.getHeader().getHash(), e);                                
             }
         }
+        
     }
     
     MinerBlockChainListener minerBlockChainListener = new MinerBlockChainListener();
