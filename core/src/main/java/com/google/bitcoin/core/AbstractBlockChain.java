@@ -432,7 +432,7 @@ public abstract class AbstractBlockChain {
             // Quick check for duplicates to avoid an expensive check further down (in findSplit). This can happen a lot
             // when connecting orphan transactions due to the dumb brute force algorithm we use.
             if (block.equals(getChainHead().getHeader())) {
-                return true;                    
+                return true;
             }
             if (tryConnecting && orphanBlocks.containsKey(block.getHash())) {
                 return false;
@@ -445,15 +445,15 @@ public abstract class AbstractBlockChain {
             // Check for already-seen block, but only for full pruned mode, where the DB is
             // more likely able to handle these queries quickly.
             if (shouldVerifyTransactions() && blockStore.get(block.getHash()) != null) {
-                return true;                    
+                return true;
             }
 
             // Does this block contain any transactions we might care about? Check this up front before verifying the
             // blocks validity so we can skip the merkle root verification if the contents aren't interesting. This saves
             // a lot of time for big blocks.
-            boolean contentsImportant = false;
+            boolean contentsImportant = shouldVerifyTransactions();
             if (block.transactions != null) {
-                contentsImportant = shouldVerifyTransactions() || containsRelevantTransactions(block);
+                contentsImportant = contentsImportant || containsRelevantTransactions(block);
             }
 
             // Prove the block is internally valid: hash is lower than target, etc. This only checks the block contents
@@ -750,7 +750,7 @@ public abstract class AbstractBlockChain {
                     StoredUndoableBlock storedUndoableBlock = fullPrunedBlockStore.getUndoBlock(cursor.getHeader().getHash());
                     for (Transaction t : storedUndoableBlock.getTransactions()) {
                         cursorBlock.addTransaction(t);                    
-                    }                        
+                    }
                 } else {
                     txOutChanges = connectTransactions(newChainHead.getHeight(), block);                        
                     cursorBlock = block;
