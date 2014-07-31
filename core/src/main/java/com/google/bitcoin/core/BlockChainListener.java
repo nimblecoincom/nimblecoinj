@@ -34,6 +34,13 @@ public interface BlockChainListener {
     void notifyNewBestBlock(StoredBlock block) throws VerificationException;
 
     /**
+     * <p>Called by the {@link BlockChain} when a PushHeader arrives and will soon become the chainhead once 
+     * the transactions arrive</p>
+     * @param block
+     */
+    void notifyNewBestHeader(Block header) throws VerificationException;
+    
+    /**
      * Called by the {@link BlockChain} when the best chain (representing total work done) has changed. In this case,
      * we need to go through our transactions and find out if any have become invalid. It's possible for our balance
      * to go down in this case: money we thought we had can suddenly vanish if the rest of the network agrees it

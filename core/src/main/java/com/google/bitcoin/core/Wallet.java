@@ -36,6 +36,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+
 import org.bitcoinj.wallet.Protos.Wallet.EncryptionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +46,7 @@ import org.spongycastle.util.encoders.Hex;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
+
 import java.io.*;
 import java.math.BigInteger;
 import java.util.*;
@@ -998,6 +1000,11 @@ public class Wallet implements Serializable, BlockChainListener, PeerFilterProvi
         } finally {
             lock.unlock();
         }
+    }
+    
+    @Override
+    public void notifyNewBestHeader(Block header) throws VerificationException {
+        // do-nothing
     }
 
     /**

@@ -30,6 +30,9 @@ public class NativeBlockChainListener implements BlockChainListener {
 
     @Override
     public native void notifyNewBestBlock(StoredBlock block) throws VerificationException;
+    
+    @Override
+    public native void notifyNewBestHeader(Block header) throws VerificationException;
 
     @Override
     public native void reorganize(StoredBlock splitPoint, List<StoredBlock> oldBlocks, List<StoredBlock> newBlocks) throws VerificationException;

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +34,7 @@ import com.google.bitcoin.script.ScriptOpCodes;
 import com.google.bitcoin.store.BlockStore;
 import com.google.bitcoin.store.BlockStoreException;
 import com.google.bitcoin.store.FullPrunedBlockStore;
+import com.google.bitcoin.utils.Threading;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
@@ -45,13 +47,18 @@ import com.google.common.util.concurrent.AbstractExecutionThreadService;
 public class Miner extends AbstractExecutionThreadService {
 	
     private static final Logger log = LoggerFactory.getLogger(Miner.class);
+
+    protected final ReentrantLock lock = Threading.lock("miner");
+    
     private NetworkParameters params; 
     private PeerGroup peers;
     private Wallet wallet;
     private FullPrunedBlockStore store; 
     private AbstractBlockChain chain;
-    private boolean newBestBlockArrivedFromAnotherNode = false;
     private int numberOfMinersInParallelToEmulate = 0;
+    private boolean newBestBlockArrivedFromAnotherNode = false;
+    private StoredBlock blockToMineOnTopOf = null; 
+    private boolean blockToMineOnTopOfIsJustAHeader = false;
     
     public Miner(NetworkParameters params, PeerGroup peers, Wallet wallet, FullPrunedBlockStore store, AbstractBlockChain chain) {
         this.params = params;
@@ -62,13 +69,38 @@ public class Miner extends AbstractExecutionThreadService {
     }
 	
     private class MinerBlockChainListener extends AbstractBlockChainListener {
+
+        @Override
+        public void notifyNewBestHeader(Block header) throws VerificationException {
+            lock.lock();
+            try {                
+                log.info("Signaling mining to interrupt because this header arrived: " + header.getHash());                
+                newBestBlockArrivedFromAnotherNode = true;
+                blockToMineOnTopOf = chain.getChainHead().build(header);
+                blockToMineOnTopOfIsJustAHeader = true;
+            } finally {
+                lock.unlock();                
+            }
+        }
+
         @Override
         public void notifyNewBestBlock(StoredBlock storedBlock) throws VerificationException {
-            handleNewBestBlock(storedBlock);
+            lock.lock();
+            try {                
+                handleNewBestBlock(storedBlock);
+            } finally {
+                lock.unlock();                
+            }
         }
+
         @Override
         public void reorganize(StoredBlock splitPoint, List<StoredBlock> oldBlocks, List<StoredBlock> newBlocks) throws VerificationException {
-            handleNewBestBlock(newBlocks.get(newBlocks.size()-1));
+            lock.lock();
+            try {                
+                handleNewBestBlock(newBlocks.get(newBlocks.size()-1));
+            } finally {
+                lock.unlock();                
+            }
         }
 
         private void handleNewBestBlock(StoredBlock newBestStoredBlock) {
@@ -82,8 +114,10 @@ public class Miner extends AbstractExecutionThreadService {
                     }
                 }
                 if (!isMyBlock) {
-                    newBestBlockArrivedFromAnotherNode=true;
-                    log.info("Signaled mining to interrupt because this block arrived: " + newBestStoredBlock.getHeader().getHash());                
+                    log.info("Signaling mining to interrupt because this block arrived: " + newBestStoredBlock.getHeader().getHash());
+                    newBestBlockArrivedFromAnotherNode = true;
+                    blockToMineOnTopOf = newBestStoredBlock;
+                    blockToMineOnTopOfIsJustAHeader = false;
                 }                
             } catch (BlockStoreException e) {
                 log.warn("Exception retrieving undoable block: " + newBestStoredBlock.getHeader().getHash(), e);                                
@@ -108,6 +142,7 @@ public class Miner extends AbstractExecutionThreadService {
 
     @Override
     protected void run() throws Exception {
+        blockToMineOnTopOf = chain.getChainHead();
         while (isRunning()) {
             try {
                 //System.out.println("Press any key to mine 1 block...");
@@ -137,33 +172,45 @@ public class Miner extends AbstractExecutionThreadService {
 	
 	
 	private void mine() throws Exception {
-		Transaction coinbaseTransaction = new Transaction(params);
-    	String coibaseMessage = "Minining NimbleCoin" + System.currentTimeMillis();
-    	char[] chars = coibaseMessage.toCharArray();
-    	byte[] bytes = new byte[chars.length];
-    	for(int i=0;i<bytes.length;i++) bytes[i] = (byte) chars[i];
-        TransactionInput ti = new TransactionInput(params, coinbaseTransaction, bytes);
-        coinbaseTransaction.addInput(ti);        
-        ByteArrayOutputStream scriptPubKeyBytes = new ByteArrayOutputStream();
-        ECKey key = new ECKey();
-        wallet.addKey(key);
-        Script.writeBytes(scriptPubKeyBytes, key.getPubKey());
-        scriptPubKeyBytes.write(ScriptOpCodes.OP_CHECKSIG);
-        coinbaseTransaction.addOutput(new TransactionOutput(params, coinbaseTransaction, Utils.toNanoCoins(50, 0), scriptPubKeyBytes.toByteArray()));
-        StoredBlock chainHead = chain.getChainHead();
-        Sha256Hash prevBlockHash = chainHead.getHeader().getHash();        
-        long time = System.currentTimeMillis() / 1000;
-        long difficultyTarget = getDifficultyTargetForNewBlock(chainHead, store, params, time);
+	    Block newBlock = null;
+        lock.lock();
+        try {                
+            Transaction coinbaseTransaction = new Transaction(params);
+            String coibaseMessage = "Minining NimbleCoin" + System.currentTimeMillis();
+            char[] chars = coibaseMessage.toCharArray();
+            byte[] bytes = new byte[chars.length];
+            for(int i=0;i<bytes.length;i++) bytes[i] = (byte) chars[i];
+            TransactionInput ti = new TransactionInput(params, coinbaseTransaction, bytes);
+            coinbaseTransaction.addInput(ti);        
+            ByteArrayOutputStream scriptPubKeyBytes = new ByteArrayOutputStream();
+            ECKey key = new ECKey();
+            wallet.addKey(key);
+            Script.writeBytes(scriptPubKeyBytes, key.getPubKey());
+            scriptPubKeyBytes.write(ScriptOpCodes.OP_CHECKSIG);
+            coinbaseTransaction.addOutput(new TransactionOutput(params, coinbaseTransaction, Utils.toNanoCoins(50, 0), scriptPubKeyBytes.toByteArray()));
+            StoredBlock prevBlock = blockToMineOnTopOf;        
+            Sha256Hash prevBlockHash = prevBlock.getHeader().getHash();        
+            long time = System.currentTimeMillis() / 1000;
+            long difficultyTarget = getDifficultyTargetForNewBlock(prevBlock, store, params, time);
+            
+            newBlock = new Block(params, NetworkParameters.PROTOCOL_VERSION, prevBlockHash, time, difficultyTarget);
+            newBlock.addTransaction(coinbaseTransaction);
+            if (!blockToMineOnTopOfIsJustAHeader) {
+                //Only include transactions if we are not mining on top of a header
+                Set<Transaction> transactionsToInclude = getTransactionsToInclude(peers.getMemoryPool().getAll());
+                for (Transaction transaction : transactionsToInclude) {
+                    newBlock.addTransaction(transaction);
+                }            
+            }
+            log.info("Starting to mine block " + newBlock);
+            newBestBlockArrivedFromAnotherNode = false;
+        } finally {
+            lock.unlock();                
+        }
+
         
-        Block newBlock = new Block(params, NetworkParameters.PROTOCOL_VERSION, prevBlockHash, time, difficultyTarget);
-        newBlock.addTransaction(coinbaseTransaction);
-        Set<Transaction> transactionsToInclude = getTransactionsToInclude(peers.getMemoryPool().getAll());
-        for (Transaction transaction : transactionsToInclude) {
-            newBlock.addTransaction(transaction);
-        }       
-        log.info("Starting to mine block " + newBlock);
-        newBestBlockArrivedFromAnotherNode = false;
         while (!newBestBlockArrivedFromAnotherNode) {
+            lock.lock();
             try {
                 // Is our proof of work valid yet?
                 if (newBlock.checkProofOfWork(false))
@@ -176,16 +223,29 @@ public class Miner extends AbstractExecutionThreadService {
                 
             } catch (VerificationException e) {
                 throw new RuntimeException(e); // Cannot happen.
+            } finally {
+                lock.unlock();                
+            }            
+        }
+
+        
+        lock.lock();
+        try {                
+            if (newBestBlockArrivedFromAnotherNode) {
+                log.info("Interrupted mining because another best block arrived");
+                return;
             }
-        }
-        if (newBestBlockArrivedFromAnotherNode) {
-            log.info("Interrupted mining because another best block arrived");
-            return;
-        }
-        newBlock.verify();
-        chain.add(newBlock);
-        log.info("Mined block: " + newBlock);
-        peers.broadcastMinedBlock(newBlock);
+            newBlock.verify();
+            chain.add(newBlock);
+            log.info("Mined block: " + newBlock);
+            peers.broadcastMinedBlock(newBlock);
+            blockToMineOnTopOf = blockToMineOnTopOf.build(newBlock);
+            blockToMineOnTopOfIsJustAHeader = false;
+        } finally {
+            lock.unlock();                
+        }        
+        
+
 	}
 
 	private Set<Transaction> getTransactionsToInclude(Set<Transaction> allTransactions) throws BlockStoreException {

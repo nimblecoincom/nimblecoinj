@@ -529,122 +529,113 @@ public class Peer extends PeerSocketHandler {
   
         try {
             Block header = m.getBlockHeader();
-            if (blockChain.add(header)) {
-                // The block was successfully linked into the chain.
+            if (blockChain.addHeaderWaitingForItsTransactions(header)) {
+                // The block was successfully added to headersWaitingForItsTransactions
                 peerGroup.broadcastMessage(m, this);
-            } else {
-                lock.lock();
-                try {
-                    if (downloadBlockBodies) {
-                        final Block orphanRoot = checkNotNull(blockChain.getOrphanRoot(m.getHash()));
-                        blockChainDownloadLocked(orphanRoot.getHash());
-                    } else {
-                        log.info("Did not start chain download on solved block due to in-flight header download.");
-                    }
-                } finally {
-                    lock.unlock();
-                }
             }
                 
         } catch (VerificationException e) {
             log.warn("Block header verification failed", e);
-        } catch (PrunedException e) {
-            // Unreachable when in SPV mode.
-            throw new RuntimeException(e);
         }
     }
     
 
     private void processPushTransactionList(final PushTransactionList m) throws BlockStoreException {
-            if (blockChain == null) {
-                // Can happen if we are receiving unrequested data, or due to programmer error.
-                log.warn("Received pushtxlist when Peer is not configured with a chain.");
-                return;
-            }
+        if (blockChain == null) {
+            // Can happen if we are receiving unrequested data, or due to programmer error.
+            log.warn("Received pushtxlist when Peer is not configured with a chain.");
+            return;
+        }
 
-            final Sha256Hash blockHash = m.getBlockHash();
-            final StoredBlock storedBlock = blockChain.getBlockStore().get(blockHash);
-            if (storedBlock==null) {
-                log.warn("Received pushtxlist but the pushheader not arrived yet.");
-                return;                
-            }
-            List<Sha256Hash> transactionHashes = m.getTransactionHashes();
-            
-            if (!storedBlock.getHeader().getMerkleRoot().equals(MerkleTreeUtils.calculateHashesMerkleRoot(transactionHashes))) {
-                log.warn("pushtxlist's merkle root does not match pushheader's merkle root .");
-                return;                
-            }
-            
-            processTransaction(m.getCoinbaseTransaction());
-            
-            GetDataMessage getdata = new GetDataMessage(params);
-    
-            List<ListenableFuture<Transaction>> futures = Lists.newArrayList();
-    
-            for (Sha256Hash transactionHash : transactionHashes) {
-                // Only download the transaction if we are the first peer that saw it be advertised. Other peers will also
-                // see it be advertised in inv packets asynchronously, they co-ordinate via the memory pool. We could
-                // potentially download transactions faster by always asking every peer for a tx when advertised, as remote
-                // peers run at different speeds. However to conserve bandwidth on mobile devices we try to only download a
-                // transaction once. This means we can miss broadcasts if the peer disconnects between sending us an inv and
-                // sending us the transaction: currently we'll never try to re-fetch after a timeout.
-                if (memoryPool.get(transactionHash)!=null) {
-                    // Some other peer already announced this so don't download.
-                    Transaction transaction = memoryPool.get(transactionHash);
-                    futures.add(Futures.immediateFuture(transaction));
-                } else {
-                    log.debug("{}: getdata on tx {}", getAddress(), transactionHash);
-                    getdata.addTransaction(transactionHash);
-	                GetDataRequest req = new GetDataRequest();
-	                req.hash = transactionHash;
-	                req.future = SettableFuture.create();
-	                futures.add(req.future);
-	                getDataFutures.add(req);
-                    
-                }
-                // This can trigger transaction confidence listeners.
-                memoryPool.seen(transactionHash, this.getAddress());
-            }
-    
-            ListenableFuture<List<Transaction>> successful = Futures.successfulAsList(futures);
-    
-            if (!getdata.getItems().isEmpty()) {
-                // This will cause us to receive a bunch of block or tx messages.
-                sendMessage(getdata);
-            }
-            
-            Futures.addCallback(successful, new FutureCallback<List<Transaction>>() {
-                public void onSuccess(List<Transaction> transactions) {
-                    log.info("{}: Transactions download complete for PushTransactionList!", getAddress());
+        final Sha256Hash blockHash = m.getBlockHash();
+        final Block blockHeader = blockChain.getHeadersWaitingForItsTransactions().get(blockHash);
+        if (blockHeader==null) {
+            log.info("Received pushtxlist but the pushheader not arrived yet or was already processed.");
+            return;                
+        }
+        List<Sha256Hash> transactionHashes = m.getTransactionHashes();
+        
+        if (!blockHeader.getMerkleRoot().equals(MerkleTreeUtils.calculateHashesMerkleRoot(transactionHashes))) {
+            log.warn("pushtxlist's merkle root does not match pushheader's merkle root .");
+            return;                
+        }
+        
+        Transaction coinbaseTransaction = m.getCoinbaseTransaction();
+        coinbaseTransaction.verify();
+        
+        GetDataMessage getdata = new GetDataMessage(params);
 
-                    try {
-                        if (!blockChain.isOrphan(blockHash)) {
-                            peerGroup.broadcastMessage(m, Peer.this);
-                            Block block = storedBlock.getHeader();
-                            for (Transaction transaction : transactions) {
-                                block.addTransaction(transaction);
-                            }                        
-                            blockChain.add(block);                                
-                        } else {
-                            Block block = blockChain.getOrphanBlock(blockHash);
-                            // If the transaction were already set, do nothing-
-                            if (block.getTransactions()==null) {                                
-                                for (Transaction transaction : transactions) {
-                                    block.addTransaction(transaction);
-                                }                                                        
+        List<ListenableFuture<Transaction>> futures = Lists.newArrayList();
+        futures.add(Futures.immediateFuture(coinbaseTransaction));
+
+        for (Sha256Hash transactionHash : transactionHashes) {
+            // Only download the transaction if we are the first peer that saw it be advertised. Other peers will also
+            // see it be advertised in inv packets asynchronously, they co-ordinate via the memory pool. We could
+            // potentially download transactions faster by always asking every peer for a tx when advertised, as remote
+            // peers run at different speeds. However to conserve bandwidth on mobile devices we try to only download a
+            // transaction once. This means we can miss broadcasts if the peer disconnects between sending us an inv and
+            // sending us the transaction: currently we'll never try to re-fetch after a timeout.
+            if (memoryPool.get(transactionHash)!=null) {
+                // Some other peer already announced this so don't download.
+                Transaction transaction = memoryPool.get(transactionHash);
+                futures.add(Futures.immediateFuture(transaction));
+            } else {
+                log.debug("{}: getdata on tx {}", getAddress(), transactionHash);
+                getdata.addTransaction(transactionHash);
+                GetDataRequest req = new GetDataRequest();
+                req.hash = transactionHash;
+                req.future = SettableFuture.create();
+                futures.add(req.future);
+                getDataFutures.add(req);
+                
+            }
+        }
+
+        ListenableFuture<List<Transaction>> successful = Futures.successfulAsList(futures);
+
+        if (!getdata.getItems().isEmpty()) {
+            // This will cause us to receive a bunch of block or tx messages.
+            sendMessage(getdata);
+        }
+        
+        Futures.addCallback(successful, new FutureCallback<List<Transaction>>() {
+            public void onSuccess(List<Transaction> transactions) {
+                log.info("{}: Transactions download complete for PushTransactionList!", getAddress());
+                Block block = blockHeader;
+                for (Transaction transaction : transactions) {
+                    block.addTransaction(transaction);
+                }                    
+                try {
+                    if (blockChain.add(block)) {
+                        peerGroup.broadcastMessage(m, Peer.this);
+                    } else {
+                        lock.lock();
+                        try {
+                            if (downloadBlockBodies) {
+                                final Block orphanRoot = checkNotNull(blockChain.getOrphanRoot(m.getHash()));
+                                blockChainDownloadLocked(orphanRoot.getHash());
+                            } else {
+                                log.info("Did not start chain download on solved block due to in-flight header download.");
                             }
+                        } finally {
+                            lock.unlock();
                         }
-                    } catch (PrunedException e) {
-                        throw new RuntimeException(e);
-                    }        
+                    }
+                } catch (VerificationException e) {
+                    // We don't want verification failures to kill the thread.
+                    log.warn("{}: Block verification failed", getAddress(), e);
+                } catch (PrunedException e) {
+                    // Unreachable when in SPV mode.
+                    throw new RuntimeException(e);
+                }                    
 
-                }
+            }
 
-                public void onFailure(Throwable throwable) {
-                    log.error("Could not download transactions of block {}", blockHash);
-                    log.error("Error was: ", throwable);
-                }
-            });
+            public void onFailure(Throwable throwable) {
+                log.error("Could not download transactions of block {}", blockHash);
+                log.error("Error was: ", throwable);
+            }
+        });
     }
 
     private void processHeaders(HeadersMessage m) throws ProtocolException {

@@ -23,6 +23,7 @@ import static com.google.common.base.Preconditions.checkState;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -43,7 +44,6 @@ import com.google.bitcoin.store.BlockStoreException;
 import com.google.bitcoin.store.FullPrunedBlockStore;
 import com.google.bitcoin.utils.ListenerRegistration;
 import com.google.bitcoin.utils.Threading;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -140,6 +140,9 @@ public abstract class AbstractBlockChain {
     // were downloading the block chain.
     private final LinkedHashMap<Sha256Hash, OrphanBlock> orphanBlocks = new LinkedHashMap<Sha256Hash, OrphanBlock>();
 
+    private final Map<Sha256Hash, Block> headersWaitingForItsTransactions = new HashMap<Sha256Hash, Block>();
+
+    
     /** False positive estimation uses a double exponential moving average. */
     public static final double FP_ESTIMATOR_ALPHA = 0.0001;
     /** False positive estimation uses a double exponential moving average. */
@@ -345,6 +348,73 @@ public abstract class AbstractBlockChain {
     private long statsLastTime = System.currentTimeMillis();
     private long statsBlocksAdded;
 
+    /**
+     * Tries to add a header to the headersWaitingForItsTransactions.
+     * If it is already in the chain, in headersWaitingForItsTransactions or a known orphan does nothing and returns false
+     * If the header was succesfully added to headersWaitingForItsTransactions returns true
+     * @param block
+     */
+    public boolean addHeaderWaitingForItsTransactions(final Block block){
+        lock.lock();
+        try {
+            
+            if (block.equals(getChainHead().getHeader())) {
+                return false;                    
+            }
+
+            if (orphanBlocks.containsKey(block.getHash())) {
+                return false;
+            }
+
+            if (headersWaitingForItsTransactions.containsKey(block.getHash())) {
+                return false;
+            }
+
+            if (blockStore.get(block.getHash()) != null) {
+                return false;                    
+            }
+
+            try {
+                block.verifyHeader();
+            } catch (VerificationException e) {
+                log.error("Failed to verify block: ", e);
+                log.error(block.getHashAsString());
+                throw e;
+            }
+            
+            headersWaitingForItsTransactions.put(block.getHash(), block);
+            
+            if (getChainHead().getHeader().getHash().equals(block.getPrevBlockHash())) {
+                for (final ListenerRegistration<BlockChainListener> registration : listeners) {
+                    if (registration.executor == Threading.SAME_THREAD) {
+                        registration.listener.notifyNewBestHeader(block);
+                    } else {
+                        registration.executor.execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                registration.listener.notifyNewBestHeader(block);
+                            }
+                        });
+                    }
+                }                
+            }
+            
+            return true;
+
+        } catch (BlockStoreException e) {
+            // TODO: Figure out a better way to propagate this exception to the user.
+            throw new RuntimeException(e);
+        } finally {
+            lock.unlock();
+        }
+    }
+    
+    public Map<Sha256Hash, Block> getHeadersWaitingForItsTransactions() {
+        return headersWaitingForItsTransactions;
+    }
+
+    
+    
     // filteredTxHashList contains all transactions, filteredTxn just a subset
     private boolean add(Block block, boolean tryConnecting,
                         @Nullable List<Sha256Hash> filteredTxHashList, @Nullable Map<Sha256Hash, Transaction> filteredTxn)
@@ -425,6 +495,9 @@ public abstract class AbstractBlockChain {
                 checkDifficultyTransitions(storedPrev, block);
                 connectBlock(block, storedPrev, shouldVerifyTransactions(), filteredTxHashList, filteredTxn);
             }
+            
+            // removes the block from headersWaitingForItsTransactions if it was there
+            headersWaitingForItsTransactions.remove(block.getHash());
 
             if (tryConnecting)
                 tryConnectingOrphans();

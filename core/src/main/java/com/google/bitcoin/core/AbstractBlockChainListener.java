@@ -25,6 +25,10 @@ public class AbstractBlockChainListener implements BlockChainListener {
     @Override
     public void notifyNewBestBlock(StoredBlock block) throws VerificationException {
     }
+    
+    @Override
+    public void notifyNewBestHeader(Block header) throws VerificationException {
+    }
 
     @Override
     public void reorganize(StoredBlock splitPoint, List<StoredBlock> oldBlocks, List<StoredBlock> newBlocks) throws VerificationException {
