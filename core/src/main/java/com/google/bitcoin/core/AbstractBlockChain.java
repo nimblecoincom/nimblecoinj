@@ -44,6 +44,7 @@ import com.google.bitcoin.store.BlockStoreException;
 import com.google.bitcoin.store.FullPrunedBlockStore;
 import com.google.bitcoin.utils.ListenerRegistration;
 import com.google.bitcoin.utils.Threading;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -125,9 +126,8 @@ public abstract class AbstractBlockChain {
         final Map<Sha256Hash, Transaction> filteredTxn;
         OrphanBlock(Block block, @Nullable List<Sha256Hash> filteredTxHashes, @Nullable Map<Sha256Hash, Transaction> filteredTxn) {
             final boolean filtered = filteredTxHashes != null && filteredTxn != null;
-//            Check no longer valid since PushHeaders
-//            Preconditions.checkArgument((block.transactions == null && filtered)
-//                                        || (block.transactions != null && !filtered));
+            Preconditions.checkArgument((block.transactions == null && filtered)
+                                        || (block.transactions != null && !filtered));
             if (!shouldVerifyTransactions())
                 this.block = block.cloneAsHeader();
             else
@@ -432,29 +432,20 @@ public abstract class AbstractBlockChain {
             // Quick check for duplicates to avoid an expensive check further down (in findSplit). This can happen a lot
             // when connecting orphan transactions due to the dumb brute force algorithm we use.
             if (block.equals(getChainHead().getHeader())) {
-                if(!shouldVerifyTransactions() || block.getTransactions()==null || ((FullPrunedBlockStore)blockStore).getUndoBlock(getChainHead().getHeader().getHash())!=null) {
-                    // If this is not a full node or supplied block does not have transactions or stored block already has transactions 
-                    return true;                    
-                }
+                return true;                    
             }
             if (tryConnecting && orphanBlocks.containsKey(block.getHash())) {
                 return false;
             }
 
-            /*
-            This is no longer valid since we receive PushHeader when a block is mined
             // If we want to verify transactions (ie we are running with full blocks), verify that block has transactions
             if (shouldVerifyTransactions() && block.transactions == null)
                 throw new VerificationException("Got a block header while running in full-block mode");
-            */    
 
             // Check for already-seen block, but only for full pruned mode, where the DB is
             // more likely able to handle these queries quickly.
             if (shouldVerifyTransactions() && blockStore.get(block.getHash()) != null) {
-                if(block.getTransactions()==null || ((FullPrunedBlockStore)blockStore).getUndoBlock(block.getHash())!=null) {
-                    // If supplied block does not have transactions or stored block already has transactions 
-                    return true;                    
-                }
+                return true;                    
             }
 
             // Does this block contain any transactions we might care about? Check this up front before verifying the
@@ -520,14 +511,15 @@ public abstract class AbstractBlockChain {
         // Check that we aren't connecting a block that fails a checkpoint check
         if (!params.passesCheckpoint(storedPrev.getHeight() + 1, block.getHash()))
             throw new VerificationException("Block failed checkpoint lockin at " + (storedPrev.getHeight() + 1));
-        if (shouldVerifyTransactions() && block.transactions!=null) {
+        if (shouldVerifyTransactions()) {
+            checkNotNull(block.transactions);
             for (Transaction tx : block.transactions)
                 if (!tx.isFinal(storedPrev.getHeight() + 1, block.getTimeSeconds()))
                    throw new VerificationException("Block contains non-final transaction");
         }
         
         StoredBlock head = getChainHead();
-        if (storedPrev.equals(head) || block.getHash().equals(head.getHeader().getHash())) {
+        if (storedPrev.equals(head)) {
             if (filtered && filteredTxn.size() > 0)  {
                 log.debug("Block {} connects to top of best chain with {} transaction(s) of which we were sent {}",
                         block.getHashAsString(), filteredTxHashList.size(), filteredTxn.size());
@@ -538,7 +530,7 @@ public abstract class AbstractBlockChain {
             
             // This block connects to the best known block, it is a normal continuation of the system.
             TransactionOutputChanges txOutChanges = null;
-            if (shouldVerifyTransactions() && block.transactions!=null)
+            if (shouldVerifyTransactions())
                 txOutChanges = connectTransactions(storedPrev.getHeight() + 1, block);
             StoredBlock newStoredBlock = addToBlockStore(storedPrev, block, txOutChanges);
             setChainHead(newStoredBlock);
@@ -749,29 +741,21 @@ public abstract class AbstractBlockChain {
                 cursor = it.next();
                 if (expensiveChecks && cursor.getHeader().getTimeSeconds() <= getMedianTimestampOfRecentBlocks(cursor.getPrev(blockStore), blockStore))
                     throw new VerificationException("Block's timestamp is too early during reorg");
-                TransactionOutputChanges txOutChanges = null;
+                TransactionOutputChanges txOutChanges;
                 Block cursorBlock = null;
                 if (cursor != newChainHead || block == null) {
+                    txOutChanges = connectTransactions(cursor);                    
                     cursorBlock = cursor.getHeader();
                     FullPrunedBlockStore fullPrunedBlockStore = (FullPrunedBlockStore) getBlockStore();
                     StoredUndoableBlock storedUndoableBlock = fullPrunedBlockStore.getUndoBlock(cursor.getHeader().getHash());
-                    if (storedUndoableBlock!=null) {
-                        txOutChanges = connectTransactions(cursor);                    
-                        for (Transaction t : storedUndoableBlock.getTransactions()) {
-                            cursorBlock.addTransaction(t);                    
-                        }                        
-                    }
+                    for (Transaction t : storedUndoableBlock.getTransactions()) {
+                        cursorBlock.addTransaction(t);                    
+                    }                        
                 } else {
-                    if (block.getTransactions()!=null && !block.getTransactions().isEmpty()) {
-                        txOutChanges = connectTransactions(newChainHead.getHeight(), block);                        
-                    }
+                    txOutChanges = connectTransactions(newChainHead.getHeight(), block);                        
                     cursorBlock = block;
                 }
-                if (cursorBlock.getTransactions()!=null && !block.getTransactions().isEmpty()) {
-                    storedNewHead = addToBlockStore(storedNewHead, cursorBlock, txOutChanges);                    
-                } else {
-                    storedNewHead = addToBlockStore(storedNewHead, cursorBlock);                                        
-                }
+                storedNewHead = addToBlockStore(storedNewHead, cursorBlock, txOutChanges);                    
             }
         } else {
             // (Finally) write block to block store
@@ -1089,20 +1073,7 @@ public abstract class AbstractBlockChain {
             lock.unlock();
         }
     }
-    
-    /**
-     * Return the orphan block given its hash
-     * @param blockHash The o
-     * @return
-     */
-    public Block getOrphanBlock(Sha256Hash blockHash) {
-        lock.lock();
-        try {
-            return orphanBlocks.get(blockHash).block;
-        } finally {
-            lock.unlock();
-        }
-    }
+
     
     /**
      * Returns an estimate of when the given block will be reached, assuming a perfect 10 minute average for each
