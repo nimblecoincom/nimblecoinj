@@ -569,12 +569,7 @@ public class Peer extends PeerSocketHandler {
         futures.add(Futures.immediateFuture(coinbaseTransaction));
 
         for (Sha256Hash transactionHash : transactionHashes) {
-            // Only download the transaction if we are the first peer that saw it be advertised. Other peers will also
-            // see it be advertised in inv packets asynchronously, they co-ordinate via the memory pool. We could
-            // potentially download transactions faster by always asking every peer for a tx when advertised, as remote
-            // peers run at different speeds. However to conserve bandwidth on mobile devices we try to only download a
-            // transaction once. This means we can miss broadcasts if the peer disconnects between sending us an inv and
-            // sending us the transaction: currently we'll never try to re-fetch after a timeout.
+            if (coinbaseTransaction.getHash().equals(transactionHash)) continue;
             if (memoryPool.get(transactionHash)!=null) {
                 // Some other peer already announced this so don't download.
                 Transaction transaction = memoryPool.get(transactionHash);

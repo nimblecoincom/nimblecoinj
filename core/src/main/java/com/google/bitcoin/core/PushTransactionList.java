@@ -61,6 +61,12 @@ public class PushTransactionList extends Message {
         return blockHash;
     }
     
+    @Override
+    public Sha256Hash getHash() {
+        return blockHash;
+    }
+    
+    
     public PushTransactionList(NetworkParameters params, Block block) {
         super(params);
         this.blockHash = block.getHash();

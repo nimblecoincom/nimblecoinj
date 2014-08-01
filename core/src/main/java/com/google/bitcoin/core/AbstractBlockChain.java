@@ -1172,4 +1172,8 @@ public abstract class AbstractBlockChain {
     public void setUseLowerHashPolicy(boolean useLowerHashPolicy) {
         this.useLowerHashPolicy = useLowerHashPolicy;
     }
+    
+    public ReentrantLock getLock() {
+        return lock;
+    }
 }

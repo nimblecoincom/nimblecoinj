@@ -131,7 +131,7 @@ public class Miner extends AbstractExecutionThreadService {
     @Override
     protected void startUp() throws Exception {
         super.startUp();
-        chain.addListener(minerBlockChainListener);
+        chain.addListener(minerBlockChainListener, Threading.USER_THREAD);
     }
     
     @Override
@@ -244,39 +244,43 @@ public class Miner extends AbstractExecutionThreadService {
         } finally {
             lock.unlock();                
         }        
-        
 
 	}
 
 	private Set<Transaction> getTransactionsToInclude(Set<Transaction> allTransactions) throws BlockStoreException {
-	    Set<Transaction> transactionsToInclude = new TreeSet<Transaction>(new TransactionPriorityComparator());
-	    for (Transaction transaction : allTransactions) {
-            if (!store.hasUnspentOutputs(transaction.getHash(), transaction.getOutputs().size())) {                
-                // Transaction was not already included in a block that is part of the best chain 
-                boolean allOutPointsAreInTheBestChain = true;
-                boolean allOutPointsAreMature = true;
-                for (TransactionInput transactionInput : transaction.getInputs()) {
-                    TransactionOutPoint outPoint = transactionInput.getOutpoint();
-                    StoredTransactionOutput storedOutPoint = store.getTransactionOutput(outPoint.getHash(), outPoint.getIndex());
-                    if (storedOutPoint == null) {
-                        //Outpoint not in the best chain
-                        allOutPointsAreInTheBestChain = false;
-                        break;
-                    }
-                    if ((chain.getBestChainHeight()+1) - storedOutPoint.getHeight() < params.getSpendableCoinbaseDepth()) {
-                        //Outpoint is a non mature coinbase
-                        allOutPointsAreMature = false;
-                        break;
-                    }
-                    
-                }
-                if (allOutPointsAreInTheBestChain && allOutPointsAreMature) {
-                    transactionsToInclude.add(transaction);                    
-                }
-            }
-            
-        }	    
-        return ImmutableSet.copyOf(Iterables.limit(transactionsToInclude, 1000));
+	    chain.getLock().lock();
+	    try{
+	        Set<Transaction> transactionsToInclude = new TreeSet<Transaction>(new TransactionPriorityComparator());
+	        for (Transaction transaction : allTransactions) {
+	            if (!store.hasUnspentOutputs(transaction.getHash(), transaction.getOutputs().size())) {                
+	                // Transaction was not already included in a block that is part of the best chain 
+	                boolean allOutPointsAreInTheBestChain = true;
+	                boolean allOutPointsAreMature = true;
+	                for (TransactionInput transactionInput : transaction.getInputs()) {
+	                    TransactionOutPoint outPoint = transactionInput.getOutpoint();
+	                    StoredTransactionOutput storedOutPoint = store.getTransactionOutput(outPoint.getHash(), outPoint.getIndex());
+	                    if (storedOutPoint == null) {
+	                        //Outpoint not in the best chain
+	                        allOutPointsAreInTheBestChain = false;
+	                        break;
+	                    }
+	                    if ((chain.getBestChainHeight()+1) - storedOutPoint.getHeight() < params.getSpendableCoinbaseDepth()) {
+	                        //Outpoint is a non mature coinbase
+	                        allOutPointsAreMature = false;
+	                        break;
+	                    }
+	                    
+	                }
+	                if (allOutPointsAreInTheBestChain && allOutPointsAreMature) {
+	                    transactionsToInclude.add(transaction);                    
+	                }
+	            }
+	            
+	        }	    
+	        return ImmutableSet.copyOf(Iterables.limit(transactionsToInclude, 1000));	        
+	    } finally {
+	        chain.getLock().unlock();
+	    }
     }
 
     private static class TransactionPriorityComparator implements Comparator<Transaction>{
