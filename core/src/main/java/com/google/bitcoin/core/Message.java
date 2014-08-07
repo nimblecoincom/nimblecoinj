@@ -398,6 +398,16 @@ public abstract class Message implements Serializable {
         return length;
     }
 
+    long readUint16() throws ProtocolException {
+        try {
+            long u = Utils.readUint16(bytes, cursor);
+            cursor += 2;
+            return u;
+        } catch (ArrayIndexOutOfBoundsException e) {
+            throw new ProtocolException(e);
+        }
+    }
+
     long readUint32() throws ProtocolException {
         try {
             long u = Utils.readUint32(bytes, cursor);

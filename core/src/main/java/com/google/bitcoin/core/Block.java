@@ -75,6 +75,7 @@ public class Block extends Message {
 
     // Fields defined as part of the protocol format.
     private long version;
+    private long flags;
     private Sha256Hash prevBlockHash;
     private Sha256Hash merkleRoot;
     private long time;
@@ -103,6 +104,7 @@ public class Block extends Message {
         super(params);
         // Set up a few basic things. We are not complete after this though.
         version = NetworkParameters.PROTOCOL_VERSION;
+        flags = 0;
         difficultyTarget = 0x1d07fff8L;
         time = System.currentTimeMillis() / 1000;
         prevBlockHash = Sha256Hash.ZERO_HASH;
@@ -160,6 +162,7 @@ public class Block extends Message {
                  long difficultyTarget, long nonce, List<Transaction> transactions) {
         super(params);
         this.version = version;
+        this.flags = 0;
         this.prevBlockHash = prevBlockHash;
         this.merkleRoot = merkleRoot;
         this.time = time;
@@ -195,7 +198,8 @@ public class Block extends Message {
             return;
 
         cursor = offset;
-        version = readUint32();
+        version = readUint16();
+        flags = readUint16();
         prevBlockHash = readHash();
         merkleRoot = readHash();
         time = readUint32();
@@ -391,7 +395,8 @@ public class Block extends Message {
         }
         // fall back to manual write
         maybeParseHeader();
-        Utils.uint32ToByteStreamLE(version, stream);
+        Utils.uint16ToByteStreamLE(version, stream);
+        Utils.uint16ToByteStreamLE(flags, stream);
         stream.write(Utils.reverseBytes(prevBlockHash.getBytes()));
         stream.write(Utils.reverseBytes(getMerkleRoot().getBytes()));
         Utils.uint32ToByteStreamLE(time, stream);
@@ -568,6 +573,7 @@ public class Block extends Message {
         block.prevBlockHash = prevBlockHash.duplicate();
         block.merkleRoot = getMerkleRoot().duplicate();
         block.version = version;
+        block.flags = flags;
         block.time = time;
         block.difficultyTarget = difficultyTarget;
         block.transactions = null;
@@ -583,6 +589,8 @@ public class Block extends Message {
     public String toString() {
         StringBuilder s = new StringBuilder("v");
         s.append(version);
+        s.append(" flags: ");
+        s.append(flags);
         s.append(" block: \n");
         s.append("   hash: ");
         s.append(getHash());
@@ -832,6 +840,11 @@ public class Block extends Message {
     public long getVersion() {
         maybeParseHeader();
         return version;
+    }
+    
+    public long getFlags() {
+        maybeParseHeader();
+        return flags;
     }
 
     /**

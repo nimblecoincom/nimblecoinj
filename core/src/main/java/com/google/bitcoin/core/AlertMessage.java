@@ -73,7 +73,7 @@ public class AlertMessage extends Message {
         cursor = startPos;
         readVarInt();  // Skip the length field on the content array.
         // We're inside the embedded structure.
-        version = readUint32();
+        version = readUint16();
         // Read the timestamps. Bitcoin uses seconds since the epoch.
         relayUntil = new Date(readUint64().longValue() * 1000);
         expiration = new Date(readUint64().longValue() * 1000);
@@ -90,8 +90,8 @@ public class AlertMessage extends Message {
         for (long i = 0; i < cancelSetSize; i++) {
             cancelSet.add(readUint32());
         }
-        minVer = readUint32();
-        maxVer = readUint32();
+        minVer = readUint16();
+        maxVer = readUint16();
         // Read the subver matching set.
         long subverSetSize = readVarInt();
         if (subverSetSize < 0 || subverSetSize > MAX_SET_SIZE) {

@@ -128,7 +128,7 @@ public class VersionMessage extends Message {
             return;
         parsed = true;
 
-        clientVersion = (int) readUint32();
+        clientVersion = (int) readUint16();
         localServices = readUint64().longValue();
         time = readUint64().longValue();
         myAddr = new PeerAddress(params, bytes, cursor, 0);
@@ -162,7 +162,7 @@ public class VersionMessage extends Message {
 
     @Override
     public void bitcoinSerializeToStream(OutputStream buf) throws IOException {
-        Utils.uint32ToByteStreamLE(clientVersion, buf);
+        Utils.uint16ToByteStreamLE(clientVersion, buf);
         Utils.uint32ToByteStreamLE(localServices, buf);
         Utils.uint32ToByteStreamLE(localServices >> 32, buf);
         Utils.uint32ToByteStreamLE(time, buf);
