@@ -311,9 +311,8 @@ public class PeerTest extends TestWithNetworkConnections {
         // A full end-to-end test of the chain download process, with a new block being solved in the middle.
         Block b1 = createFakeBlock(blockStore).block;
         blockChain.add(b1);
-        Block b2 = makeSolvedTestBlock(b1);
-        Block b3 = makeSolvedTestBlock(b2);
-
+        Transaction t1 = createFakeTx(unitTestParams, BigInteger.valueOf(10), new ECKey());
+        Block b2 = makeSolvedTestBlock(b1, t1);
 
         connect();
         
@@ -328,23 +327,30 @@ public class PeerTest extends TestWithNetworkConnections {
 
         PushTransactionList pushTransactionList = new PushTransactionList(unitTestParams, b2);
         inbound(writeTarget, pushTransactionList);
-        assertEquals(b1.getHash(), blockChain.getChainHead().getHeader().getHash());
         GetDataMessage getdata = (GetDataMessage)outbound(writeTarget);
-        assertEquals(1, getdata.getItems().size());
+        assertEquals(2, getdata.getItems().size());
         assertEquals(b2.getTransactions().get(1).getHash(), getdata.getItems().get(0).hash);
+        assertEquals(b2.getTransactions().get(2).getHash(), getdata.getItems().get(1).hash);
         assertEquals(InventoryItem.Type.Transaction, getdata.getItems().get(0).type);
+        assertEquals(InventoryItem.Type.Transaction, getdata.getItems().get(1).type);
         //Validate chainhead is still b1
         getblocks = new GetBlocksMessage(unitTestParams, Lists.newArrayList(b1.getHash()), Sha256Hash.ZERO_HASH);
         inbound(writeTarget, getblocks);
         inv = (InventoryMessage)outbound(writeTarget);
         assertEquals(0, inv.getItems().size());
-
         
-        inbound(writeTarget, b2.getTransactions().get(1));
+        inbound(writeTarget, b2.getTransactions().get(2));
+        //Validate chainhead is still b1
         getblocks = new GetBlocksMessage(unitTestParams, Lists.newArrayList(b1.getHash()), Sha256Hash.ZERO_HASH);
         inbound(writeTarget, getblocks);
         inv = (InventoryMessage)outbound(writeTarget);
+        assertEquals(0, inv.getItems().size());
+        
+        inbound(writeTarget, b2.getTransactions().get(1));
         //Validate chainhead is now b2
+        getblocks = new GetBlocksMessage(unitTestParams, Lists.newArrayList(b1.getHash()), Sha256Hash.ZERO_HASH);
+        inbound(writeTarget, getblocks);
+        inv = (InventoryMessage)outbound(writeTarget);
         assertEquals(1, inv.getItems().size());
         assertEquals(b2.getHash(), inv.getItems().get(0).hash);
 
