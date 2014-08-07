@@ -304,6 +304,52 @@ public class PeerTest extends TestWithNetworkConnections {
         
         closePeer(peer);
     }
+
+    
+    @Test
+    public void pushHeadersAndPushTransactionList() throws Exception {
+        // A full end-to-end test of the chain download process, with a new block being solved in the middle.
+        Block b1 = createFakeBlock(blockStore).block;
+        blockChain.add(b1);
+        Block b2 = makeSolvedTestBlock(b1);
+        Block b3 = makeSolvedTestBlock(b2);
+
+
+        connect();
+        
+        assertEquals(b1.getHash(), blockChain.getChainHead().getHeader().getHash());
+        PushHeader pushHeader = new PushHeader(unitTestParams, b2.cloneAsHeader());
+        inbound(writeTarget, pushHeader);
+        //Validate chainhead is still b1
+        GetBlocksMessage getblocks = new GetBlocksMessage(unitTestParams, Lists.newArrayList(b1.getHash()), Sha256Hash.ZERO_HASH);
+        inbound(writeTarget, getblocks);
+        InventoryMessage inv = (InventoryMessage)outbound(writeTarget);
+        assertEquals(0, inv.getItems().size());
+
+        PushTransactionList pushTransactionList = new PushTransactionList(unitTestParams, b2);
+        inbound(writeTarget, pushTransactionList);
+        assertEquals(b1.getHash(), blockChain.getChainHead().getHeader().getHash());
+        GetDataMessage getdata = (GetDataMessage)outbound(writeTarget);
+        assertEquals(1, getdata.getItems().size());
+        assertEquals(b2.getTransactions().get(1).getHash(), getdata.getItems().get(0).hash);
+        assertEquals(InventoryItem.Type.Transaction, getdata.getItems().get(0).type);
+        //Validate chainhead is still b1
+        getblocks = new GetBlocksMessage(unitTestParams, Lists.newArrayList(b1.getHash()), Sha256Hash.ZERO_HASH);
+        inbound(writeTarget, getblocks);
+        inv = (InventoryMessage)outbound(writeTarget);
+        assertEquals(0, inv.getItems().size());
+
+        
+        inbound(writeTarget, b2.getTransactions().get(1));
+        getblocks = new GetBlocksMessage(unitTestParams, Lists.newArrayList(b1.getHash()), Sha256Hash.ZERO_HASH);
+        inbound(writeTarget, getblocks);
+        inv = (InventoryMessage)outbound(writeTarget);
+        //Validate chainhead is now b2
+        assertEquals(1, inv.getItems().size());
+        assertEquals(b2.getHash(), inv.getItems().get(0).hash);
+
+        closePeer(peer);
+    }
     
     // Check that an inventory tickle is processed correctly when downloading missing blocks is active.
     @Test
