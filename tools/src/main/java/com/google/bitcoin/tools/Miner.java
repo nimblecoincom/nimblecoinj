@@ -163,14 +163,16 @@ public class Miner extends AbstractExecutionThreadService {
         
         
         StoredBlock prevBlock = null;
-        boolean blockToMineOnTopOfIsJustAHeader = false;
+        boolean mineAnEmptyBlock = false;
         chain.getLock().lock();
         try{
             prevBlock = chain.getChainHead();
             for (Block header : chain.getHeadersWaitingForItsTransactions().values()) {
                 if (header.getPrevBlockHash().equals(prevBlock.getHeader().getHash())) {
                     prevBlock = chain.getChainHead().build(header);
-                    blockToMineOnTopOfIsJustAHeader = true;
+                    if (!header.getEmptyBlock()) {
+                        mineAnEmptyBlock = true;                        
+                    }
                     break;
                 }
             }
@@ -184,14 +186,15 @@ public class Miner extends AbstractExecutionThreadService {
         
         Block newBlock = new Block(params, NetworkParameters.PROTOCOL_VERSION, prevBlockHash, time, difficultyTarget);
         newBlock.addTransaction(coinbaseTransaction);
-        if (!blockToMineOnTopOfIsJustAHeader) {
+        if (!mineAnEmptyBlock) {
             //Only include transactions if we are not mining on top of a header
-            Set<Transaction> transactionsToInclude = getTransactionsToInclude(peers.getMemoryPool().getAll());
+            Set<Transaction> transactionsToInclude = getTransactionsToInclude(peers.getMemoryPool().getAll(), prevBlock.getHeight());
             for (Transaction transaction : transactionsToInclude) {
                 newBlock.addTransaction(transaction);
             }            
         } else {
-            log.info("About to mine an top of a header");            
+            newBlock.setEmptyBlock(true);
+            log.info("About to mine an empty block");            
         }
         log.info("Starting to mine block " + newBlock);
         newBestBlockArrivedFromAnotherNode = false;
@@ -225,7 +228,7 @@ public class Miner extends AbstractExecutionThreadService {
 
 	}
 
-	private Set<Transaction> getTransactionsToInclude(Set<Transaction> allTransactions) throws BlockStoreException {
+	private Set<Transaction> getTransactionsToInclude(Set<Transaction> allTransactions, int prevHeight) throws BlockStoreException {
 	    chain.getLock().lock();
 	    try{
 	        Set<Transaction> transactionsToInclude = new TreeSet<Transaction>(new TransactionPriorityComparator());
@@ -242,7 +245,7 @@ public class Miner extends AbstractExecutionThreadService {
 	                        allOutPointsAreInTheBestChain = false;
 	                        break;
 	                    }
-	                    if ((chain.getBestChainHeight()+1) - storedOutPoint.getHeight() < params.getSpendableCoinbaseDepth()) {
+	                    if ((prevHeight+1) - storedOutPoint.getHeight() < params.getSpendableCoinbaseDepth()) {
 	                        //Outpoint is a non mature coinbase
 	                        allOutPointsAreMature = false;
 	                        break;

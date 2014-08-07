@@ -73,6 +73,10 @@ public class Block extends Message {
     /** A value for difficultyTarget (nBits) that allows half of all possible hash solutions. Used in unit testing. */
     public static final long EASIEST_DIFFICULTY_TARGET = 0x207fFFFFL;
 
+    private static final long FLAGS_ALL_ZERO = 0x0L;
+    private static final long FLAGS_EMPTY_BLOCK_TRUE = 0x1L;
+    private static final long FLAGS_EMPTY_BLOCK_FALSE = 0xFFFEL;
+    
     // Fields defined as part of the protocol format.
     private long version;
     private long flags;
@@ -162,7 +166,7 @@ public class Block extends Message {
                  long difficultyTarget, long nonce, List<Transaction> transactions) {
         super(params);
         this.version = version;
-        this.flags = 0;
+        this.flags = FLAGS_ALL_ZERO;
         this.prevBlockHash = prevBlockHash;
         this.merkleRoot = merkleRoot;
         this.time = time;
@@ -846,7 +850,20 @@ public class Block extends Message {
         maybeParseHeader();
         return flags;
     }
+    
+    public boolean getEmptyBlock() {
+        return (FLAGS_EMPTY_BLOCK_TRUE & flags) == FLAGS_EMPTY_BLOCK_TRUE ;
+    }
 
+    public void setEmptyBlock(boolean isEmpty) {
+        if (isEmpty) {
+            flags |= FLAGS_EMPTY_BLOCK_TRUE;
+        } else {
+            flags &= FLAGS_EMPTY_BLOCK_FALSE;            
+        }
+        
+    }
+ 
     /**
      * Returns the hash of the previous block in the chain, as defined by the block header.
      */
