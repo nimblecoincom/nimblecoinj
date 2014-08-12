@@ -1,8 +1,11 @@
 package com.google.bitcoin.tools;
 
+import static com.google.common.base.Preconditions.checkState;
+
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -33,7 +36,6 @@ import com.google.bitcoin.script.ScriptOpCodes;
 import com.google.bitcoin.store.BlockStore;
 import com.google.bitcoin.store.BlockStoreException;
 import com.google.bitcoin.store.FullPrunedBlockStore;
-import com.google.bitcoin.utils.Threading;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
@@ -164,8 +166,9 @@ public class Miner extends AbstractExecutionThreadService {
         
         StoredBlock prevBlock = null;
         boolean mineAnEmptyBlock = false;
+        Block newBlock;
         chain.getLock().lock();
-        try{
+        try {
             prevBlock = chain.getChainHead();
             for (Block header : chain.getHeadersWaitingForItsTransactions().values()) {
                 if (header.getPrevBlockHash().equals(prevBlock.getHeader().getHash())) {
@@ -176,28 +179,28 @@ public class Miner extends AbstractExecutionThreadService {
                     break;
                 }
             }
+        
+            Sha256Hash prevBlockHash = prevBlock.getHeader().getHash();        
+            long time = System.currentTimeMillis() / 1000;
+            long difficultyTarget = getDifficultyTargetForNewBlock(prevBlock, store, params, time);
+            
+            newBlock = new Block(params, NetworkParameters.PROTOCOL_VERSION, prevBlockHash, time, difficultyTarget);
+            newBlock.addTransaction(coinbaseTransaction);
+            if (!mineAnEmptyBlock) {
+                //Only include transactions if we are not mining on top of a header
+                Set<Transaction> transactionsToInclude = getTransactionsToInclude(peers.getMemoryPool().getAll(), prevBlock.getHeight());
+                for (Transaction transaction : transactionsToInclude) {
+                    newBlock.addTransaction(transaction);
+                }            
+            } else {
+                newBlock.setEmptyBlock(true);
+                log.info("About to mine an empty block");            
+            }
+            log.info("Starting to mine block " + newBlock);
+            newBestBlockArrivedFromAnotherNode = false;
         } finally {
             chain.getLock().unlock();
         }
-        
-        Sha256Hash prevBlockHash = prevBlock.getHeader().getHash();        
-        long time = System.currentTimeMillis() / 1000;
-        long difficultyTarget = getDifficultyTargetForNewBlock(prevBlock, store, params, time);
-        
-        Block newBlock = new Block(params, NetworkParameters.PROTOCOL_VERSION, prevBlockHash, time, difficultyTarget);
-        newBlock.addTransaction(coinbaseTransaction);
-        if (!mineAnEmptyBlock) {
-            //Only include transactions if we are not mining on top of a header
-            Set<Transaction> transactionsToInclude = getTransactionsToInclude(peers.getMemoryPool().getAll(), prevBlock.getHeight());
-            for (Transaction transaction : transactionsToInclude) {
-                newBlock.addTransaction(transaction);
-            }            
-        } else {
-            newBlock.setEmptyBlock(true);
-            log.info("About to mine an empty block");            
-        }
-        log.info("Starting to mine block " + newBlock);
-        newBestBlockArrivedFromAnotherNode = false;
 
         
         while (!newBestBlockArrivedFromAnotherNode) {
@@ -229,39 +232,43 @@ public class Miner extends AbstractExecutionThreadService {
 	}
 
 	private Set<Transaction> getTransactionsToInclude(Set<Transaction> allTransactions, int prevHeight) throws BlockStoreException {
-	    chain.getLock().lock();
-	    try{
-	        Set<Transaction> transactionsToInclude = new TreeSet<Transaction>(new TransactionPriorityComparator());
-	        for (Transaction transaction : allTransactions) {
-	            if (!store.hasUnspentOutputs(transaction.getHash(), transaction.getOutputs().size())) {                
-	                // Transaction was not already included in a block that is part of the best chain 
-	                boolean allOutPointsAreInTheBestChain = true;
-	                boolean allOutPointsAreMature = true;
-	                for (TransactionInput transactionInput : transaction.getInputs()) {
-	                    TransactionOutPoint outPoint = transactionInput.getOutpoint();
-	                    StoredTransactionOutput storedOutPoint = store.getTransactionOutput(outPoint.getHash(), outPoint.getIndex());
-	                    if (storedOutPoint == null) {
-	                        //Outpoint not in the best chain
-	                        allOutPointsAreInTheBestChain = false;
-	                        break;
-	                    }
-	                    if ((prevHeight+1) - storedOutPoint.getHeight() < params.getSpendableCoinbaseDepth()) {
-	                        //Outpoint is a non mature coinbase
-	                        allOutPointsAreMature = false;
-	                        break;
-	                    }
-	                    
-	                }
-	                if (allOutPointsAreInTheBestChain && allOutPointsAreMature) {
-	                    transactionsToInclude.add(transaction);                    
-	                }
-	            }
-	            
-	        }	    
-	        return ImmutableSet.copyOf(Iterables.limit(transactionsToInclude, 1000));	        
-	    } finally {
-	        chain.getLock().unlock();
-	    }
+        checkState(chain.getLock().isHeldByCurrentThread());
+        Set<TransactionOutPoint> spentOutPointsInThisBlock = new HashSet<TransactionOutPoint>();
+        Set<Transaction> transactionsToInclude = new TreeSet<Transaction>(new TransactionPriorityComparator());
+        for (Transaction transaction : allTransactions) {
+            if (!store.hasUnspentOutputs(transaction.getHash(), transaction.getOutputs().size())) {                
+                // Transaction was not already included in a block that is part of the best chain 
+                boolean allOutPointsAreInTheBestChain = true;
+                boolean allOutPointsAreMature = true;
+                boolean doesNotDoubleSpend = true;
+                for (TransactionInput transactionInput : transaction.getInputs()) {
+                    TransactionOutPoint outPoint = transactionInput.getOutpoint();
+                    StoredTransactionOutput storedOutPoint = store.getTransactionOutput(outPoint.getHash(), outPoint.getIndex());
+                    if (storedOutPoint == null) {
+                        //Outpoint not in the best chain
+                        allOutPointsAreInTheBestChain = false;
+                        break;
+                    }
+                    if ((prevHeight+1) - storedOutPoint.getHeight() < params.getSpendableCoinbaseDepth()) {
+                        //Outpoint is a non mature coinbase
+                        allOutPointsAreMature = false;
+                        break;
+                    }
+                    if (spentOutPointsInThisBlock.contains(outPoint)) {
+                        doesNotDoubleSpend = false;
+                        break;
+                    } else {
+                        spentOutPointsInThisBlock.add(outPoint);
+                    }                 
+                    
+                }
+                if (allOutPointsAreInTheBestChain && allOutPointsAreMature && doesNotDoubleSpend) {
+                    transactionsToInclude.add(transaction);                    
+                }
+            }
+            
+        }	    
+        return ImmutableSet.copyOf(Iterables.limit(transactionsToInclude, 1000));	        
     }
 
     private static class TransactionPriorityComparator implements Comparator<Transaction>{
