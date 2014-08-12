@@ -176,8 +176,18 @@ public class FullPrunedBlockChain extends AbstractBlockChain {
                     Sha256Hash hash = tx.getHash();
                     // If we already have unspent outputs for this hash, we saw the tx already. Either the block is
                     // being added twice (bug) or the block is a BIP30 violator.
-                    if (blockStore.hasUnspentOutputs(hash, tx.getOutputs().size()))
-                        throw new VerificationException("Block failed BIP30 test!");
+                    if (blockStore.hasUnspentOutputs(hash, tx.getOutputs().size())){
+                        log.error("VerificationException: Block failed BIP30 test");
+                        log.error("tx {}", tx);
+                        log.error("hash {}", hash);
+                        log.error("Thread.dumpStack()");
+                        Thread.dumpStack();
+                        log.error("new Throwable().printStackTrace()");
+                        new Throwable().printStackTrace();
+                        log.error("new Exception() : ", new Exception());                        
+                        //System.exit(1);                        
+                        throw new VerificationException("Block failed BIP30 test!");                        
+                    }
                     if (enforcePayToScriptHash) // We already check non-BIP16 sigops in Block.verifyTransactions(true)
                         sigOps += tx.getSigOpCount();
                 }
@@ -198,14 +208,14 @@ public class FullPrunedBlockChain extends AbstractBlockChain {
                                                                                           in.getOutpoint().getIndex());
                         if (prevOut == null){
 //                            Uncomment this to debug
-//                            log.error("Exception: Attempted to spend a non-existent or already spent output!");
-//                            log.error("TransactionInput : " + in);
-//                            log.error("Thread.dumpStack()");
-//                            Thread.dumpStack();
-//                            log.error("new Throwable().printStackTrace()");
-//                            new Throwable().printStackTrace();
-//                            log.error("new Exception() : ", new Exception());
-//                            System.exit(1);
+                            log.error("VerificationException: Attempted to spend a non-existent or already spent output!");
+                            log.error("TransactionInput : " + in);
+                            log.error("Thread.dumpStack()");
+                            Thread.dumpStack();
+                            log.error("new Throwable().printStackTrace()");
+                            new Throwable().printStackTrace();
+                            log.error("new Exception() : ", new Exception());
+                            //System.exit(1);
                             throw new VerificationException("Attempted to spend a non-existent or already spent output!");
                         }
                         // Coinbases can't be spent until they mature, to avoid re-orgs destroying entire transaction
@@ -313,8 +323,18 @@ public class FullPrunedBlockChain extends AbstractBlockChain {
                 if (!params.isCheckpoint(newBlock.getHeight())) {
                     for(Transaction tx : transactions) {
                         Sha256Hash hash = tx.getHash();
-                        if (blockStore.hasUnspentOutputs(hash, tx.getOutputs().size()))
+                        if (blockStore.hasUnspentOutputs(hash, tx.getOutputs().size())){
+                            log.error("VerificationException: Block failed BIP30 test");
+                            log.error("tx {}", tx);
+                            log.error("hash {}", hash);
+                            log.error("Thread.dumpStack()");
+                            Thread.dumpStack();
+                            log.error("new Throwable().printStackTrace()");
+                            new Throwable().printStackTrace();
+                            log.error("new Exception() : ", new Exception());                            
+                            //System.exit(1);                        
                             throw new VerificationException("Block failed BIP30 test!");
+                        }
                     }
                 }
                 BigInteger totalFees = BigInteger.ZERO;
@@ -333,8 +353,17 @@ public class FullPrunedBlockChain extends AbstractBlockChain {
                             final TransactionInput in = tx.getInputs().get(index);
                             final StoredTransactionOutput prevOut = blockStore.getTransactionOutput(in.getOutpoint().getHash(),
                                                                                                     in.getOutpoint().getIndex());
-                            if (prevOut == null)
-                                throw new VerificationException("Attempted spend of a non-existent or already spent output!");
+                            if (prevOut == null) {
+                                log.error("VerificationException: Attempted to spend a non-existent or already spent output!");
+                                log.error("TransactionInput : " + in);
+                                log.error("Thread.dumpStack()");
+                                Thread.dumpStack();
+                                log.error("new Throwable().printStackTrace()");
+                                new Throwable().printStackTrace();
+                                log.error("new Exception() : ", new Exception());
+                                //System.exit(1);
+                                throw new VerificationException("Attempted spend of a non-existent or already spent output!");                                
+                            }
                             if (newBlock.getHeight() - prevOut.getHeight() < params.getSpendableCoinbaseDepth())
                                 throw new VerificationException("Tried to spend coinbase at depth " + (newBlock.getHeight() - prevOut.getHeight()));
                             valueIn = valueIn.add(prevOut.getValue());

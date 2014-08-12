@@ -27,6 +27,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
@@ -706,6 +707,88 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
         }
     }
 
+    
+    @Nullable
+    public List<StoredUndoableBlock> getUndoBlocksUsingTransaction(Sha256Hash txHash) throws BlockStoreException {
+        List<StoredUndoableBlock> undoableBlocks = new ArrayList<StoredUndoableBlock>();
+        maybeConnect();
+        PreparedStatement s = null;
+        try {
+            s = conn.get()
+                .prepareStatement("SELECT txOutChanges, transactions, header FROM undoableBlocks, headers "
+                               + " WHERE undoableBlocks.hash = headers.hash");
+            ResultSet results = s.executeQuery();
+            while (results.next()) {
+                byte[] txOutChanges = results.getBytes(1);
+                byte[] transactions = results.getBytes(2);
+                StoredUndoableBlock storedUndoableBlock;
+                int offset = 0;
+                int numTxn = ((transactions[offset++] & 0xFF) << 0) |
+                             ((transactions[offset++] & 0xFF) << 8) |
+                             ((transactions[offset++] & 0xFF) << 16) |
+                             ((transactions[offset++] & 0xFF) << 24);
+                List<Transaction> transactionList = new LinkedList<Transaction>();
+                for (int i = 0; i < numTxn; i++) {
+                    Transaction tx = new Transaction(params, transactions, offset);
+                    transactionList.add(tx);
+                    offset += tx.getMessageSize();
+                }
+                Block block = new Block(params, results.getBytes(3));
+                if (txOutChanges == null) {
+                    storedUndoableBlock = new StoredUndoableBlock(block.getHash(), transactionList);
+                } else {
+                    TransactionOutputChanges outChangesObject =
+                            new TransactionOutputChanges(new ByteArrayInputStream(txOutChanges));
+                    storedUndoableBlock = new StoredUndoableBlock(block.getHash(), transactionList, outChangesObject);
+                }
+                boolean found = false;
+                for (Transaction transaction : storedUndoableBlock.getTransactions()) {
+                    if (transaction.getHash().equals(txHash)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (storedUndoableBlock.getTxOutChanges()!=null) {
+                    for (StoredTransactionOutput transaction : storedUndoableBlock.getTxOutChanges().txOutsCreated) {
+                        if (transaction.getHash().equals(txHash)) {
+                            found = true;
+                            break;
+                        }
+                    }                    
+                    for (StoredTransactionOutput transaction : storedUndoableBlock.getTxOutChanges().txOutsSpent) {
+                        if (transaction.getHash().equals(txHash)) {
+                            found = true;
+                            break;
+                        }
+                    }                    
+                }
+                if (found) {
+                    undoableBlocks.add(storedUndoableBlock);
+                }
+            }
+            return undoableBlocks;
+        } catch (SQLException ex) {
+            throw new BlockStoreException(ex);
+        } catch (NullPointerException e) {
+            // Corrupted database.
+            throw new BlockStoreException(e);
+        } catch (ClassCastException e) {
+            // Corrupted database.
+            throw new BlockStoreException(e);
+        } catch (ProtocolException e) {
+            // Corrupted database.
+            throw new BlockStoreException(e);
+        } catch (IOException e) {
+            // Corrupted database.
+            throw new BlockStoreException(e);
+        } finally {
+            if (s != null)
+                try {
+                    s.close();
+                } catch (SQLException e) { throw new BlockStoreException("Failed to close PreparedStatement"); }
+        }
+    }
+    
     public StoredBlock getChainHead() throws BlockStoreException {
         return chainHeadBlock;
     }

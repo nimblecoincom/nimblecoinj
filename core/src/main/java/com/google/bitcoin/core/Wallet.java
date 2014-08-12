@@ -104,7 +104,7 @@ public class Wallet implements Serializable, BlockChainListener, PeerFilterProvi
     private static final long serialVersionUID = 2L;
     private static final int MINIMUM_BLOOM_DATA_LENGTH = 8;
 
-    protected final ReentrantLock lock = Threading.lock("wallet");
+    public final ReentrantLock lock = Threading.lock("wallet");
 
     // The various pools below give quick access to wallet-relevant transactions by the state they're in:
     //
@@ -1099,6 +1099,12 @@ public class Wallet implements Serializable, BlockChainListener, PeerFilterProvi
             }
 
             if (result == TransactionInput.ConnectionResult.ALREADY_SPENT) {
+                log.warn("Exception: double spend detected");
+                log.error("Thread.dumpStack()");
+                Thread.dumpStack();
+                log.error("new Throwable().printStackTrace()");
+                new Throwable().printStackTrace();
+                log.error("new Exception() : ", new Exception());                
                 if (fromChain) {
                     // Double spend from chain: this will be handled later by checkForDoubleSpendAgainstPending.
                     log.warn("updateForSpends: saw double spend from chain, handling later.");
@@ -1132,6 +1138,17 @@ public class Wallet implements Serializable, BlockChainListener, PeerFilterProvi
                     TransactionInput.ConnectionResult result = input.connect(tx, TransactionInput.ConnectMode.ABORT_ON_CONFLICT);
                     // This TX is supposed to have just appeared on the best chain, so its outputs should not be marked
                     // as spent yet. If they are, it means something is happening out of order.
+                    if (result == TransactionInput.ConnectionResult.ALREADY_SPENT) {
+                        log.error("Exception: Spending already spent coins");
+                        log.error("pendingTx {}", pendingTx);
+                        log.error("input {}", input);
+                        log.error("Thread.dumpStack()");
+                        Thread.dumpStack();
+                        log.error("new Throwable().printStackTrace()");
+                        new Throwable().printStackTrace();
+                        log.error("new Exception() : ", new Exception());                        
+                        //System.exit(1);
+                    }
                     checkState(result != TransactionInput.ConnectionResult.ALREADY_SPENT);
                     if (result == TransactionInput.ConnectionResult.SUCCESS) {
                         log.info("Connected pending tx input {}:{}",
