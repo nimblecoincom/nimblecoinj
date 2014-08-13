@@ -225,9 +225,11 @@ public class Miner extends AbstractExecutionThreadService {
             return;
         }
         newBlock.verify();
-        chain.add(newBlock);
         log.info("Mined block: " + newBlock);
+        chain.add(newBlock);
+        log.info("Added mined block to blockchain: " + newBlock.getHash());
         peers.broadcastMinedBlock(newBlock);
+        log.info("Sent mined block: " + newBlock.getHash());
 
 	}
 

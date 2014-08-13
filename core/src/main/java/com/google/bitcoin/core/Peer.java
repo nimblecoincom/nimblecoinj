@@ -1750,7 +1750,9 @@ public class Peer extends PeerSocketHandler {
     protected void maybeDelay(Message m) {
         try {
             if (RegTestParams.get().equals(params)) {
-                Thread.sleep(150 + m.getMessageSize()/10000);
+                int delay = 150 + m.getMessageSize()/10000;
+                log.info("About to emulate delay of {}ms", delay);
+                Thread.sleep(delay);
             }
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
