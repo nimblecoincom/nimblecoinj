@@ -63,7 +63,6 @@ import com.google.bitcoin.utils.ListenerRegistration;
 import com.google.bitcoin.utils.Threading;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
@@ -106,7 +105,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     // Addresses to try to connect to, excluding active peers.
     @GuardedBy("lock") private final PriorityQueue<PeerAddress> inactives;
     @GuardedBy("lock") private final Map<PeerAddress, ExponentialBackoff> backoffMap;
-
+    
     // Currently active peers. This is an ordered list rather than a set to make unit tests predictable.
     private final CopyOnWriteArrayList<Peer> peers;
     // Currently connecting peers.
@@ -1087,8 +1086,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
                 peer.close();
                 return;
             }
-            Iterable<Peer> activeAndPendingPeers = Iterables.concat(peers, pendingPeers);
-            for (Peer activeOrPendingPeer : activeAndPendingPeers) {
+            for (Peer activeOrPendingPeer : peers) {
                 if (peer.getPeerVersionMessage().myAddr.equals(activeOrPendingPeer.getVersionMessage().theirAddr) ||
                     peer.getPeerVersionMessage().myAddr.equals(activeOrPendingPeer.getPeerVersionMessage().myAddr)) {
                     log.warn("Double connection with peer, disconecting... {} {} {} {}", 
@@ -1679,5 +1677,5 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     
     HashSet<Sha256Hash> getPendingBlockDownloads() {
         return pendingBlockDownloads;
-    }
+    }    
 }

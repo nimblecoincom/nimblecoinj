@@ -20,10 +20,11 @@ echo "MINERS is $MINERS"
 PORT=19000
 for i in $(seq 1 $NODES)
 do
-  if [ $i <= $MINERS ]; then
-    java -Djava.util.logging.config.file=logging.properties -server -jar ../target/nimblecoinj-tools-*.jar sync --mode=FULL --net=REGTEST --wallet=data/regtest$i.wallet --chain=data/regtest$i.chain --debuglog --server --server-port=$PORT --netbox --netbox-nodes=$NODES --netbox-peers=$PEERS --miner --miner-emulate=$MINERS --waitfor=EVER &
-  else
-    java -Djava.util.logging.config.file=logging.properties -server -jar ../target/nimblecoinj-tools-*.jar sync --mode=FULL --net=REGTEST --wallet=data/regtest$i.wallet --chain=data/regtest$i.chain --debuglog --server --server-port=$PORT --netbox --netbox-nodes=$NODES --netbox-peers=$PEERS --waitfor=EVER &
-  fi
   PORT=$((PORT + 1))  
+  if test $i -le $MINERS
+  then
+    java -Djava.util.logging.config.file=file-logging.properties -server -jar ../target/nimblecoinj-tools-*.jar sync --mode=FULL --net=REGTEST --wallet=data/regtest$i.wallet --chain=data/regtest$i.chain --debuglog --server --server-port=$PORT --netbox --netbox-nodes=$NODES --netbox-peers=$PEERS --miner --miner-emulate=$MINERS --waitfor=EVER &
+  else
+    java -Djava.util.logging.config.file=file-logging.properties -server -jar ../target/nimblecoinj-tools-*.jar sync --mode=FULL --net=REGTEST --wallet=data/regtest$i.wallet --chain=data/regtest$i.chain --debuglog --server --server-port=$PORT --netbox --netbox-nodes=$NODES --netbox-peers=$PEERS --waitfor=EVER &
+  fi
 done

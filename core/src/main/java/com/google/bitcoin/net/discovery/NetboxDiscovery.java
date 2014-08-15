@@ -23,8 +23,8 @@ public class NetboxDiscovery implements PeerDiscovery {
         try {
             InetSocketAddress[] addresses = new InetSocketAddress[netboxNodes-1];
             int arrayIndex = 0;
-            for (int i = 0; i < netboxNodes-1; ++i) {
-                int port = BASE_NETBOX_PORT + i;
+            for (int i = 0; i < netboxNodes; ++i) {
+                int port = BASE_NETBOX_PORT + i + 1;
                 if (port!=selfPort) {
                     addresses[arrayIndex++] = new InetSocketAddress(InetAddress.getLocalHost(), port);                    
                 }                 
