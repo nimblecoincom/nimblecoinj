@@ -8,3 +8,5 @@ target
 *.jpage
 tools/testbox/logs/*
 tools/testbox/data/regtest*
+tools/netbox/logs/*
+tools/netbox/data/regtest*

@@ -71,6 +71,7 @@ import com.google.bitcoin.core.WrongNetworkException;
 import com.google.bitcoin.crypto.KeyCrypterException;
 import com.google.bitcoin.net.BlockingClientManager;
 import com.google.bitcoin.net.discovery.DnsDiscovery;
+import com.google.bitcoin.net.discovery.NetboxDiscovery;
 import com.google.bitcoin.net.discovery.PeerDiscovery;
 import com.google.bitcoin.params.MainNetParams;
 import com.google.bitcoin.params.RegTestParams;
@@ -261,7 +262,9 @@ public class WalletTool {
                 .withRequiredArg()
                 .ofType(CompetitivePolicy.class)
                 .defaultsTo(CompetitivePolicy.LOWER_HASH);
-
+        parser.accepts("netbox");
+        parser.accepts("netbox-nodes").withRequiredArg();
+        parser.accepts("netbox-peers").withRequiredArg();
         options = parser.parse(args);
 
         final String HELP_TEXT = Resources.toString(WalletTool.class.getResource("wallet-tool-help.txt"), Charsets.UTF_8);
@@ -826,9 +829,17 @@ public class WalletTool {
             }
         } else {
             if (params == RegTestParams.get()) {
-                if (!options.has("server")) {
-                    log.info("Assuming regtest node on localhost");
-                    peers.addAddress(PeerAddress.localhost(params));                    
+                if (!options.has("netbox")) {
+                    if (!options.has("server")) {
+                        log.info("Assuming regtest node on localhost");
+                        peers.addAddress(PeerAddress.localhost(params));                    
+                    }                                    
+                } else {
+                    int netboxNodes = Integer.valueOf((String) options.valueOf("netbox-nodes"));            
+                    int netboxPeers = Integer.valueOf((String) options.valueOf("netbox-peers"));            
+                    int serverPort = Integer.valueOf((String) options.valueOf("server-port"));
+                    peers.addPeerDiscovery(new NetboxDiscovery(netboxNodes, serverPort));
+                    peers.setMaxConnections(netboxPeers);
                 }                
             } else {
                 peers.addPeerDiscovery(new DnsDiscovery(params));

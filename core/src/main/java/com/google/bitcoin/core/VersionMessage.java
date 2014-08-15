@@ -16,11 +16,13 @@
 
 package com.google.bitcoin.core;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Random;
+
+import javax.annotation.Nullable;
 
 /**
  * A VersionMessage holds information exchanged during connection setup with another peer. Most of the fields are not
@@ -59,6 +61,10 @@ public class VersionMessage extends Message {
      * What the other side believes their own address is. Not used.
      */
     public PeerAddress theirAddr;
+    /**
+     * Node random nonce, randomly generated every time a version packet is sent. This nonce is used to detect connections to self.
+     */
+    public long nonce;
     /**
      * An additional string that today the official client sets to the empty string. We treat it as something like an
      * HTTP User-Agent header.
@@ -107,6 +113,7 @@ public class VersionMessage extends Message {
         } catch (UnknownHostException e) {
             throw new RuntimeException(e);  // Cannot happen (illegal IP length).
         }
+        nonce = new Random().nextLong();
         subVer = LIBRARY_SUBVER;
         bestHeight = newBestHeight;
         this.relayTxesBeforeFilter = relayTxesBeforeFilter;
@@ -135,10 +142,7 @@ public class VersionMessage extends Message {
         cursor += myAddr.getMessageSize();
         theirAddr = new PeerAddress(params, bytes, cursor, 0);
         cursor += theirAddr.getMessageSize();
-        // uint64 localHostNonce  (random data)
-        // We don't care about the localhost nonce. It's used to detect connecting back to yourself in cases where
-        // there are NATs and proxies in the way. However we don't listen for inbound connections so it's irrelevant.
-        readUint64();
+        nonce = readUint64().longValue();
         try {
             // Initialize default values for flags which may not be sent by old nodes
             subVer = "";
@@ -180,8 +184,8 @@ public class VersionMessage extends Message {
         // Next up is the "local host nonce", this is to detect the case of connecting
         // back to yourself. We don't care about this as we won't be accepting inbound 
         // connections.
-        Utils.uint32ToByteStreamLE(0, buf);
-        Utils.uint32ToByteStreamLE(0, buf);
+        Utils.uint32ToByteStreamLE(nonce, buf);
+        Utils.uint32ToByteStreamLE(nonce >> 32, buf);
         // Now comes subVer.
         byte[] subVerBytes = subVer.getBytes("UTF-8");
         buf.write(new VarInt(subVerBytes.length).encode());
@@ -209,6 +213,7 @@ public class VersionMessage extends Message {
                 other.time == time &&
                 other.subVer.equals(subVer) &&
                 other.myAddr.equals(myAddr) &&
+                other.nonce == nonce &&
                 other.theirAddr.equals(theirAddr) &&
                 other.relayTxesBeforeFilter == relayTxesBeforeFilter;
     }
@@ -232,7 +237,7 @@ public class VersionMessage extends Message {
     @Override
     public int hashCode() {
         return (int) bestHeight ^ clientVersion ^ (int) localServices ^ (int) time ^ subVer.hashCode() ^ myAddr.hashCode()
-                ^ theirAddr.hashCode() * (relayTxesBeforeFilter ? 1 : 2);
+                ^ theirAddr.hashCode() ^ (int) nonce * (relayTxesBeforeFilter ? 1 : 2);
     }
 
     public String toString() {
@@ -243,6 +248,7 @@ public class VersionMessage extends Message {
         sb.append("time:           ").append(time).append("\n");
         sb.append("my addr:        ").append(myAddr).append("\n");
         sb.append("their addr:     ").append(theirAddr).append("\n");
+        sb.append("nonce:          ").append(nonce).append("\n");
         sb.append("sub version:    ").append(subVer).append("\n");
         sb.append("best height:    ").append(bestHeight).append("\n");
         sb.append("delay tx relay: ").append(relayTxesBeforeFilter).append("\n");
@@ -256,6 +262,7 @@ public class VersionMessage extends Message {
         v.time = time;
         v.myAddr = myAddr;
         v.theirAddr = theirAddr;
+        v.nonce = nonce;
         v.subVer = subVer;
         return v;
     }

@@ -63,6 +63,7 @@ import com.google.bitcoin.utils.ListenerRegistration;
 import com.google.bitcoin.utils.Threading;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
@@ -349,6 +350,8 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         int height = chain == null ? 0 : chain.getBestChainHeight();
         // We never request that the remote node wait for a bloom filter yet, as we have no wallets
         this.versionMessage = new VersionMessage(params, height, true, chain.shouldVerifyTransactions());
+        this.versionMessage.myAddr.setPort(serverPort);
+
         this.downloadTxDependencies = true;
 
         memoryPool = new MemoryPool();
@@ -516,6 +519,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         VersionMessage ver = new VersionMessage(params, height, false, shouldVerifyTransactions);
         updateVersionMessageRelayTxesBeforeFilter(ver);
         ver.appendToSubVer(name, version, comments);
+        ver.myAddr.setPort(serverPort);
         setVersionMessage(ver);
     }
     
@@ -985,6 +989,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     @Nullable
     protected Peer connectTo(PeerAddress address, boolean incrementMaxConnections) {
         VersionMessage ver = getVersionMessage().duplicate();
+        ver.theirAddr = address;
         ver.bestHeight = chain == null ? 0 : chain.getBestChainHeight();
         ver.time = Utils.currentTimeSeconds();
 
@@ -1075,6 +1080,24 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
             if (!peer.getInitiatedByPeer()) {
                 groupBackoff.trackSuccess();
                 backoffMap.get(peer.getAddress()).trackSuccess();                
+            }   
+            if (peer.getPeerVersionMessage().nonce == this.versionMessage.nonce) {
+                // Connected to self, disconnect.
+                log.error("Connected to self node, disconnecting...");
+                peer.close();
+                return;
+            }
+            Iterable<Peer> activeAndPendingPeers = Iterables.concat(peers, pendingPeers);
+            for (Peer activeOrPendingPeer : activeAndPendingPeers) {
+                if (peer.getPeerVersionMessage().myAddr.equals(activeOrPendingPeer.getVersionMessage().theirAddr) ||
+                    peer.getPeerVersionMessage().myAddr.equals(activeOrPendingPeer.getPeerVersionMessage().myAddr)) {
+                    log.warn("Double connection with peer, disconecting... {} {} {} {}", 
+                            peer.getVersionMessage(), peer.getPeerVersionMessage(),
+                            activeOrPendingPeer.getVersionMessage(), activeOrPendingPeer.getPeerVersionMessage());
+                    peer.close();
+                    return;                    
+                }
+                
             }
 
             // Sets up the newly connected peer so it can do everything it needs to.

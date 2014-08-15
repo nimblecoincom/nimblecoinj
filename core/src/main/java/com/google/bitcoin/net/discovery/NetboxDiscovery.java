@@ -10,26 +10,24 @@ import java.util.concurrent.TimeUnit;
 public class NetboxDiscovery implements PeerDiscovery {
 
     private int netboxNodes;
-    private int netboxPeers;
     private int selfPort;
     private final static int BASE_NETBOX_PORT = 19000;
 
-    public NetboxDiscovery(int netboxNodes, int netboxPeers, int selfPort) {
+    public NetboxDiscovery(int netboxNodes, int selfPort) {
         this.netboxNodes = netboxNodes; 
-        this.netboxPeers = netboxPeers;
         this.selfPort = selfPort;
     }
 
     @Override
     public InetSocketAddress[] getPeers(long timeoutValue, TimeUnit timeoutUnit) throws PeerDiscoveryException {
         try {
-            InetSocketAddress[] addresses = new InetSocketAddress[netboxPeers];
-            for (int i = 0; i < netboxPeers; ++i) {
-                int port = 0;
-                do {
-                    port = BASE_NETBOX_PORT + ((int)(Math.random()*netboxNodes));                    
-                } while (port==selfPort);
-                addresses[i] = new InetSocketAddress(InetAddress.getLocalHost(), port);
+            InetSocketAddress[] addresses = new InetSocketAddress[netboxNodes-1];
+            int arrayIndex = 0;
+            for (int i = 0; i < netboxNodes-1; ++i) {
+                int port = BASE_NETBOX_PORT + i;
+                if (port!=selfPort) {
+                    addresses[arrayIndex++] = new InetSocketAddress(InetAddress.getLocalHost(), port);                    
+                }                 
             }
             Collections.shuffle(Arrays.asList(addresses));
             return addresses;
