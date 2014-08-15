@@ -6,7 +6,9 @@ target
 *.iml
 
 *.jpage
-tools/testbox/logs/*
 tools/testbox/data/regtest*
-tools/netbox/logs/*
 tools/netbox/data/regtest*
+
+*.tmp
+*.log
+*.log.lck
