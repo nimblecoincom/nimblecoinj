@@ -21,6 +21,7 @@ import com.google.bitcoin.net.MessageWriteTarget;
 import com.google.bitcoin.net.StreamParser;
 import com.google.bitcoin.utils.Threading;
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,9 +86,9 @@ public abstract class PeerSocketHandler extends AbstractTimeoutHandler implement
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
             serializer.serialize(message, out);
-            log.info("{}: About to send {}", this, message.getClass());
+            if (!(message instanceof Ping) && ! (message instanceof Pong)) log.info("{}: About to send {}", this, message.getClass());
             writeTarget.writeBytes(out.toByteArray());
-            log.info("Sent!");
+            if (!(message instanceof Ping) && ! (message instanceof Pong)) log.info("Sent!");
         } catch (IOException e) {
             exceptionCaught(e);
         }
