@@ -102,6 +102,8 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     private static final Logger log = LoggerFactory.getLogger(PeerGroup.class);
     protected final ReentrantLock lock = Threading.lock("peergroup");
 
+    Set<MessageIdentifier> receivedMessages = Collections.synchronizedSet(new HashSet<MessageIdentifier>());
+    
     // Addresses to try to connect to, excluding active peers.
     @GuardedBy("lock") private final PriorityQueue<PeerAddress> inactives;
     @GuardedBy("lock") private final Map<PeerAddress, ExponentialBackoff> backoffMap;
@@ -1082,16 +1084,16 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
             }   
             if (peer.getPeerVersionMessage().nonce == this.versionMessage.nonce) {
                 // Connected to self, disconnect.
-                log.error("Connected to self node, disconnecting...");
+                log.error("Connected to myself, disconnecting...");
                 peer.close();
                 return;
             }
-            for (Peer activeOrPendingPeer : peers) {
-                if (peer.getPeerVersionMessage().myAddr.equals(activeOrPendingPeer.getVersionMessage().theirAddr) ||
-                    peer.getPeerVersionMessage().myAddr.equals(activeOrPendingPeer.getPeerVersionMessage().myAddr)) {
+            for (Peer activePeer : peers) {
+                if (peer.getPeerVersionMessage().myAddr.equals(activePeer.getVersionMessage().theirAddr) ||
+                    peer.getPeerVersionMessage().myAddr.equals(activePeer.getPeerVersionMessage().myAddr)) {
                     log.warn("Double connection with peer, disconecting... {} {} {} {}", 
                             peer.getVersionMessage(), peer.getPeerVersionMessage(),
-                            activeOrPendingPeer.getVersionMessage(), activeOrPendingPeer.getPeerVersionMessage());
+                            activePeer.getVersionMessage(), activePeer.getPeerVersionMessage());
                     peer.close();
                     return;                    
                 }
@@ -1677,5 +1679,10 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     
     HashSet<Sha256Hash> getPendingBlockDownloads() {
         return pendingBlockDownloads;
-    }    
+    }
+    
+    public Set<MessageIdentifier> getReceivedMessages() {
+        return receivedMessages;
+    }
+    
 }

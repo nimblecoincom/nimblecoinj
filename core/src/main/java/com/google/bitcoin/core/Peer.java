@@ -525,8 +525,13 @@ public class Peer extends PeerSocketHandler {
             // Can happen if we are receiving unrequested data, or due to programmer error.
             log.warn("Received pushheader when Peer is not configured with a chain.");
             return;
-         }
-  
+        }
+        
+        MessageIdentifier messageIdentifier = new MessageIdentifier(m.getClass(), m.getHash());
+        boolean wasNew = peerGroup.getReceivedMessages().add(messageIdentifier);
+        if (!wasNew) return;
+        
+
         try {
             Block header = m.getBlockHeader();
             if (blockChain.addHeaderWaitingForItsTransactions(header)) {
@@ -546,7 +551,12 @@ public class Peer extends PeerSocketHandler {
             log.warn("Received pushtxlist when Peer is not configured with a chain.");
             return;
         }
+        
+        MessageIdentifier messageIdentifier = new MessageIdentifier(m.getClass(), m.getHash());
+        boolean wasNew = peerGroup.getReceivedMessages().add(messageIdentifier);
+        if (!wasNew) return;
 
+        
         final Sha256Hash blockHash = m.getBlockHash();
         final Block blockHeader = blockChain.getHeadersWaitingForItsTransactions().get(blockHash);
         if (blockHeader==null) {
@@ -595,7 +605,7 @@ public class Peer extends PeerSocketHandler {
         
         Futures.addCallback(successful, new FutureCallback<List<Transaction>>() {
             public void onSuccess(List<Transaction> transactions) {
-                log.info("{}: Transactions download complete for PushTransactionList!", getAddress());
+                log.info("{}: I have all the transactions for the received PushTransactionList!", getAddress());
                 Block block = blockHeader;
                 for (Transaction transaction : transactions) {
                     block.addTransaction(transaction);
@@ -660,6 +670,10 @@ public class Peer extends PeerSocketHandler {
             checkState(!downloadBlockBodies, toString());
             for (int i = 0; i < m.getBlockHeaders().size(); i++) {
                 Block header = m.getBlockHeaders().get(i);
+                MessageIdentifier messageIdentifier = new MessageIdentifier(m.getClass(), header.getHash());
+                boolean wasNew = peerGroup.getReceivedMessages().add(messageIdentifier);
+                if (!wasNew) continue;
+                
                 // Process headers until we pass the fast catchup time, or are about to catch up with the head
                 // of the chain - always process the last block as a full/filtered block to kick us out of the
                 // fast catchup mode (in which we ignore new blocks).
@@ -808,6 +822,9 @@ public class Peer extends PeerSocketHandler {
     private void processTransaction(Transaction tx) throws VerificationException {
         // Check a few basic syntax issues to ensure the received TX isn't nonsense.
         tx.verify();
+        MessageIdentifier messageIdentifier = new MessageIdentifier(tx.getClass(), tx.getHash());
+        boolean wasNew = peerGroup.getReceivedMessages().add(messageIdentifier);
+        if (!wasNew) return;
         final Transaction fTx;
         lock.lock();
         try {
@@ -1046,7 +1063,7 @@ public class Peer extends PeerSocketHandler {
         if (blockChain == null) {
             log.warn("Received block but was not configured with an AbstractBlockChain");
             return;
-        }
+        }        
         // Did we lose download peer status after requesting block data?
         /*
         if (!vDownloadData) {
@@ -1055,6 +1072,11 @@ public class Peer extends PeerSocketHandler {
         }
         */
         peerGroup.getPendingBlockDownloads().remove(m.getHash());
+
+        MessageIdentifier messageIdentifier = new MessageIdentifier(m.getClass(), m.getHash());
+        boolean wasNew = peerGroup.getReceivedMessages().add(messageIdentifier);
+        if (!wasNew) return;
+        
         try {
             // Otherwise it's a block sent to us because the peer thought we needed it, so add it to the block chain.
             if (blockChain.add(m)) {
@@ -1207,16 +1229,20 @@ public class Peer extends PeerSocketHandler {
         List<InventoryItem> blocks = new LinkedList<InventoryItem>();
 
         for (InventoryItem item : items) {
-            switch (item.type) {
-                case Transaction:
-                    transactions.add(item);
-                    break;
-                case Block:
-                    blocks.add(item);
-                    break;
-                default:
-                    throw new IllegalStateException("Not implemented: " + item.type);
-            }
+            MessageIdentifier messageIdentifier = new MessageIdentifier(inv.getClass(), item.hash);
+            boolean wasNew = peerGroup.getReceivedMessages().add(messageIdentifier);
+            if (!wasNew) {
+                switch (item.type) {
+                    case Transaction:
+                        transactions.add(item);
+                        break;
+                    case Block:
+                        blocks.add(item);
+                        break;
+                    default:
+                        throw new IllegalStateException("Not implemented: " + item.type);
+                }                
+            }            
         }
 
         final boolean downloadData = this.vDownloadData;
@@ -1751,7 +1777,7 @@ public class Peer extends PeerSocketHandler {
         try {
             if (RegTestParams.get().equals(params)) {
                 int delay = 150 + m.getMessageSize()/10000;
-                log.info("About to emulate delay of {}ms", delay);
+                if (!(m instanceof Ping) && ! (m instanceof Pong)) log.info("About to emulate delay of {}ms", delay);
                 Thread.sleep(delay);
             }
         } catch (InterruptedException e) {
