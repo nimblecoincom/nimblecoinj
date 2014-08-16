@@ -18,8 +18,13 @@ else
 fi
 echo "MINERS is $MINERS"
 PORT=19000
+
+rm data/regtest*
+rm logs/*
 for i in $(seq 1 $NODES)
 do
+ ./simple-wallet-tool create --mode=FULL --net=REGTEST --wallet=data/regtest$i.wallet --chain=data/regtest$i.chain --debuglog 
+ ./simple-wallet-tool add-key --mode=FULL --net=REGTEST --wallet=data/regtest$i.wallet --chain=data/regtest$i.chain --debuglog 
   PORT=$((PORT + 1))  
   if test $i -le $MINERS
   then

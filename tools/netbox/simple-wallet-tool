@@ -1,1 +1,1 @@
-java -Djava.util.logging.config.file=logging.properties -server -jar ../target/nimblecoinj-tools-*.jar $*
+java -Djava.util.logging.config.file=console-logging.properties -server -jar ../target/nimblecoinj-tools-*.jar $*
