@@ -1,20 +1,16 @@
 # Summary
-Testbox has utilities to start 4 nodes in regtest mode.
-Node 1 accepts connections (all the other nodes will connect to it)
-Nodes 2, 3 and 4 are miners and connect to node 1
+Netbox has utilities to start N nodes in regtest mode.
 
-# Usage
-To initialize the testbox:  
-`./reset-110.sh`
+To start the netbox:  
+`./netbox-start.sh` [NODES] [PEERS] [MINERS
+OPTIONS
+  NODES The number of nodes to start. Default=4
+  PEERS The number of peers each node should have a connection to. Default=2
+  MINERS The number of nodes who are miners. Default=2
 
-To start the testbox:  
-`./testbox-start.sh`
-
-To stop the testbox:  
-`./testbox-stop.sh`
+To stop the netbox:  
+`./netbox-stop.sh`
  
 # Utilities
-* `dump1.sh`, `dump2.sh`, etc: Display the wallet for that node
-* `node1.sh`, `node2.sh`, etc: Start that node
-* `reset-0.sh`, `reset-110.sh`, `reset-1058.sh`: Reset blockchain and wallets. Also sets node 1 to have mined 0, 110 and 1058 blocks
-* `send*.sh`: Utilities to send coins
+* `dumpX.sh` NODE: Display the wallet for that node
+* `dump-stalesX.sh` NODE: Display the number of stales for that node
