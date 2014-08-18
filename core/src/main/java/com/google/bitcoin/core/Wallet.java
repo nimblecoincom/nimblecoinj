@@ -2426,7 +2426,7 @@ public class Wallet implements Serializable, BlockChainListener, PeerFilterProvi
                 }
                 if (dead.size() > 0) {
                     builder.append("\n>>> DEAD:\n");
-                    toStringHelper(builder, dead, chain, Transaction.SORT_TX_BY_HEIGHT);
+                    toStringHelper(builder, dead, chain, Transaction.SORT_TX_BY_UPDATE_TIME);
                 }
             }
             if (includeExtensions && extensions.size() > 0) {
