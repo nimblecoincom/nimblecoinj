@@ -1231,7 +1231,7 @@ public class Peer extends PeerSocketHandler {
         for (InventoryItem item : items) {
             MessageIdentifier messageIdentifier = new MessageIdentifier(inv.getClass(), item.hash);
             boolean wasNew = peerGroup.getReceivedMessages().add(messageIdentifier);
-            if (!wasNew) {
+            if (wasNew) {
                 switch (item.type) {
                     case Transaction:
                         transactions.add(item);
