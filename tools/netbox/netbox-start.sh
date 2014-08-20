@@ -18,7 +18,7 @@ else
 fi
 echo "MINERS is $MINERS"
 PORT=19000
-
+DEBUG_PORT=20000
 rm data/regtest*
 rm logs/*
 for i in $(seq 1 $NODES)
@@ -26,10 +26,18 @@ do
  ./simple-wallet-tool create --mode=FULL --net=REGTEST --wallet=data/regtest$i.wallet --chain=data/regtest$i.chain --debuglog 
  ./simple-wallet-tool add-key --mode=FULL --net=REGTEST --wallet=data/regtest$i.wallet --chain=data/regtest$i.chain --debuglog 
   PORT=$((PORT + 1))  
+  DEBUG_PORT=$((DEBUG_PORT + 1))  
   if test $i -le $MINERS
   then
-    java -Djava.util.logging.config.file=file-logging.properties -server -jar ../target/nimblecoinj-tools-*.jar sync --mode=FULL --net=REGTEST --wallet=data/regtest$i.wallet --chain=data/regtest$i.chain --debuglog --server --server-port=$PORT --netbox --netbox-nodes=$NODES --netbox-peers=$PEERS --miner --miner-emulate=$MINERS --waitfor=EVER &
+    MINER_PARAMS='--miner --miner-emulate='$MINERS
   else
-    java -Djava.util.logging.config.file=file-logging.properties -server -jar ../target/nimblecoinj-tools-*.jar sync --mode=FULL --net=REGTEST --wallet=data/regtest$i.wallet --chain=data/regtest$i.chain --debuglog --server --server-port=$PORT --netbox --netbox-nodes=$NODES --netbox-peers=$PEERS --waitfor=EVER &
+    MINER_PARAMS=''
   fi
+#  if test $i -eq 5
+#  then
+#    DEBUG_PARAMS='-agentlib:jdwp=transport=dt_socket,address=localhost:'$DEBUG_PORT',server=n,suspend=n'
+#  else
+    DEBUG_PARAMS='-agentlib:jdwp=transport=dt_socket,address='$DEBUG_PORT',server=y,suspend=n'
+#  fi 
+  java -Xdebug $DEBUG_PARAMS -Djava.util.logging.config.file=file-logging.properties -server -jar ../target/nimblecoinj-tools-*.jar sync --mode=FULL --net=REGTEST --wallet=data/regtest$i.wallet --chain=data/regtest$i.chain --debuglog --server --server-port=$PORT --netbox --netbox-nodes=$NODES --netbox-peers=$PEERS $MINER_PARAMS --waitfor=EVER &
 done
