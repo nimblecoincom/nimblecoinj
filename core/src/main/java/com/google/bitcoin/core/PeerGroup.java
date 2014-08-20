@@ -29,10 +29,12 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.Queue;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -55,6 +57,7 @@ import com.google.bitcoin.net.ClientConnectionManager;
 import com.google.bitcoin.net.NioClientManager;
 import com.google.bitcoin.net.StreamParser;
 import com.google.bitcoin.net.StreamParserFactory;
+import com.google.bitcoin.net.discovery.NetboxDiscovery;
 import com.google.bitcoin.net.discovery.PeerDiscovery;
 import com.google.bitcoin.net.discovery.PeerDiscoveryException;
 import com.google.bitcoin.script.Script;
@@ -63,7 +66,6 @@ import com.google.bitcoin.utils.ListenerRegistration;
 import com.google.bitcoin.utils.Threading;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
@@ -105,7 +107,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     Set<MessageIdentifier> receivedMessages = Collections.synchronizedSet(new HashSet<MessageIdentifier>());
     
     // Addresses to try to connect to, excluding active peers.
-    @GuardedBy("lock") private final PriorityQueue<PeerAddress> inactives;
+    @GuardedBy("lock") private Queue<PeerAddress> inactives;
     @GuardedBy("lock") private final Map<PeerAddress, ExponentialBackoff> backoffMap;
     
     // Currently active peers. This is an ordered list rather than a set to make unit tests predictable.
@@ -422,7 +424,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
             // when isRunning() can return false.
             do {
                 try {
-                    connectToAnyPeer();
+                    connectToAnyPeer();                    
                 } catch (PeerDiscoveryException e) {
                     groupBackoff.trackFailure();
                 }
@@ -661,11 +663,16 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         if (peerDiscoverers.isEmpty())
             throw new PeerDiscoveryException("No peer discoverers registered");
         long start = System.currentTimeMillis();
-        Set<PeerAddress> addressSet = Sets.newHashSet();
+        // HashSet would sort the peers always in ascending port order, preventing randomness for netbox 
+        Set<PeerAddress> addressSet = new LinkedHashSet<PeerAddress>();
         for (PeerDiscovery peerDiscovery : peerDiscoverers) {
             InetSocketAddress[] addresses;
             addresses = peerDiscovery.getPeers(5, TimeUnit.SECONDS);
             for (InetSocketAddress address : addresses) addressSet.add(new PeerAddress(address));
+            if (peerDiscovery instanceof NetboxDiscovery) {
+                // PriorityQueue would sort the peers always in ascending port order, preventing randomness for netbox 
+                inactives = new LinkedList<PeerAddress>(inactives);
+            }
             if (addressSet.size() > 0) break;
         }
         lock.lock();
@@ -723,6 +730,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         try {
             if (!haveReadyInactivePeer(nowMillis)) {
                 discoverPeers();
+                log.info("Discovery: Inactives: {}", inactives);
                 groupBackoff.trackSuccess();
                 nowMillis = Utils.currentTimeMillis();
             }
@@ -989,6 +997,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     // Internal version.
     @Nullable
     protected Peer connectTo(PeerAddress address, boolean incrementMaxConnections) {
+        log.info("Discovery: Trying to connect to: {}", address);
         VersionMessage ver = getVersionMessage().duplicate();
         ver.theirAddr = address;
         ver.bestHeight = chain == null ? 0 : chain.getBestChainHeight();
