@@ -838,7 +838,7 @@ public class WalletTool {
                     int netboxNodes = Integer.valueOf((String) options.valueOf("netbox-nodes"));            
                     int netboxPeers = Integer.valueOf((String) options.valueOf("netbox-peers"));            
                     int serverPort = Integer.valueOf((String) options.valueOf("server-port"));
-                    peers.addPeerDiscovery(new NetboxDiscovery(netboxNodes, serverPort));
+                    peers.addPeerDiscovery(new NetboxDiscovery(netboxNodes, netboxPeers, serverPort));
                     peers.setMaxConnections(netboxPeers);
                 }                
             } else {
