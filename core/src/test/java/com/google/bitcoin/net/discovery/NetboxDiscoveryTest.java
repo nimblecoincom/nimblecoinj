@@ -23,23 +23,28 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
+import com.google.bitcoin.params.NetboxParams;
+
 public class NetboxDiscoveryTest {
     @Test
     public void getPeers1() throws Exception{
-        NetboxDiscovery netboxDiscovery;
+        NetboxDiscovery netboxDiscovery = new NetboxDiscovery();
         InetSocketAddress[] addresses;
 
-        netboxDiscovery = new NetboxDiscovery(10, 3, 19001);
+        NetboxParams netboxParams = NetboxParams.get();
+        netboxParams.initialize(10, 3, 19001);
+
+        
         addresses = netboxDiscovery.getPeers(0, TimeUnit.SECONDS);
         assertEquals(1, addresses.length);
         assertEquals(new InetSocketAddress(InetAddress.getLocalHost(), 19006), addresses[0]);
 
-        netboxDiscovery = new NetboxDiscovery(10, 3, 19002);
+        netboxParams.initialize(10, 3, 19002);
         addresses = netboxDiscovery.getPeers(0, TimeUnit.SECONDS);
         assertEquals(1, addresses.length);
         assertEquals(new InetSocketAddress(InetAddress.getLocalHost(), 19008), addresses[0]);
 
-        netboxDiscovery = new NetboxDiscovery(10, 3, 19003);
+        netboxParams.initialize(10, 3, 19003);
         addresses = netboxDiscovery.getPeers(0, TimeUnit.SECONDS);
         assertEquals(2, addresses.length);
         assertEquals(new InetSocketAddress(InetAddress.getLocalHost(), 19004), addresses[0]);

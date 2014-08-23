@@ -38,6 +38,7 @@ import net.jcip.annotations.GuardedBy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.bitcoin.params.NetboxParams;
 import com.google.bitcoin.params.RegTestParams;
 import com.google.bitcoin.store.BlockStore;
 import com.google.bitcoin.store.BlockStoreException;
@@ -1775,8 +1776,18 @@ public class Peer extends PeerSocketHandler {
      */
     protected void maybeDelay(Message m) {
         try {
-            if (RegTestParams.get().equals(params)) {
-                int delay = 150 + m.getMessageSize()/10000;
+            if (params instanceof RegTestParams) {
+                int delay = 0;
+                if (!(params instanceof NetboxParams)) {
+                    delay = 150 + m.getMessageSize()/10000;                    
+                } else {
+                    double DELAY_MULTIPLIER = 1.1d;
+                    double distance = 0;
+                    if (versionMessage!=null && vPeerVersionMessage!=null) {
+                        distance = NetboxParams.get().getDistance((int)versionMessage.getNonce(),(int) vPeerVersionMessage.getNonce());                        
+                    }
+                    delay = (int) (distance * DELAY_MULTIPLIER) + m.getMessageSize()/10000;                    
+                }
                 if (!(m instanceof Ping) && ! (m instanceof Pong)) log.info("About to emulate delay of {}ms", delay);
                 Thread.sleep(delay);
             }

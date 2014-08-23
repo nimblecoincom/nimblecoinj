@@ -24,6 +24,8 @@ import java.util.Random;
 
 import javax.annotation.Nullable;
 
+import com.google.bitcoin.params.NetboxParams;
+
 /**
  * A VersionMessage holds information exchanged during connection setup with another peer. Most of the fields are not
  * particularly interesting. The subVer field, since BIP 14, acts as a User-Agent string would. You can and should 
@@ -113,7 +115,7 @@ public class VersionMessage extends Message {
         } catch (UnknownHostException e) {
             throw new RuntimeException(e);  // Cannot happen (illegal IP length).
         }
-        nonce = new Random().nextLong();
+        nonce = params.equals(NetboxParams.get()) ? NetboxParams.get().getSelfNode() : new Random().nextLong();
         subVer = LIBRARY_SUBVER;
         bestHeight = newBestHeight;
         this.relayTxesBeforeFilter = relayTxesBeforeFilter;
@@ -193,6 +195,10 @@ public class VersionMessage extends Message {
         // Size of known block chain.
         Utils.uint32ToByteStreamLE(bestHeight, buf);
         buf.write(relayTxesBeforeFilter ? 1 : 0);
+    }
+    
+    public long getNonce() {
+        return nonce;
     }
 
     /**

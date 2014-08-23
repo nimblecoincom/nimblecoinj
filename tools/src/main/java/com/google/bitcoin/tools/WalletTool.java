@@ -17,7 +17,7 @@
 
 package com.google.bitcoin.tools;
 
-import static com.google.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkArgument;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -74,6 +74,7 @@ import com.google.bitcoin.net.discovery.DnsDiscovery;
 import com.google.bitcoin.net.discovery.NetboxDiscovery;
 import com.google.bitcoin.net.discovery.PeerDiscovery;
 import com.google.bitcoin.params.MainNetParams;
+import com.google.bitcoin.params.NetboxParams;
 import com.google.bitcoin.params.RegTestParams;
 import com.google.bitcoin.params.TestNet3Params;
 import com.google.bitcoin.protocols.payments.PaymentRequestException;
@@ -196,7 +197,8 @@ public class WalletTool {
     public enum NetworkEnum {
         PROD,
         TEST,
-        REGTEST
+        REGTEST,
+        NETBOX
     }
 
     public enum ValidationMode {
@@ -262,7 +264,6 @@ public class WalletTool {
                 .withRequiredArg()
                 .ofType(CompetitivePolicy.class)
                 .defaultsTo(CompetitivePolicy.LOWER_HASH);
-        parser.accepts("netbox");
         parser.accepts("netbox-nodes").withRequiredArg();
         parser.accepts("netbox-peers").withRequiredArg();
         options = parser.parse(args);
@@ -304,6 +305,10 @@ public class WalletTool {
             case REGTEST:
                 params = RegTestParams.get();
                 chainBaseFile = new File("regtest.chain");
+                break;
+            case NETBOX:
+                params = NetboxParams.get();
+                chainBaseFile = new File("netbox.chain");
                 break;
             default:
                 throw new RuntimeException("Unreachable.");
@@ -801,6 +806,14 @@ public class WalletTool {
             chain.setUseLowerHashPolicy(false);            
         }
         
+        if (params == NetboxParams.get()) {
+            NetboxParams netboxParams = NetboxParams.get();
+            int netboxNodes = Integer.valueOf((String) options.valueOf("netbox-nodes"));            
+            int netboxPeers = Integer.valueOf((String) options.valueOf("netbox-peers"));            
+            int serverPort = Integer.valueOf((String) options.valueOf("server-port"));
+            netboxParams.initialize(netboxNodes, netboxPeers, serverPort);
+        }
+        
         // This will ensure the wallet is saved when it changes.
         wallet.autosaveToFile(walletFile, 200, TimeUnit.MILLISECONDS, null);
         if (!options.has("server")) {
@@ -829,18 +842,14 @@ public class WalletTool {
             }
         } else {
             if (params == RegTestParams.get()) {
-                if (!options.has("netbox")) {
-                    if (!options.has("server")) {
-                        log.info("Assuming regtest node on localhost");
-                        peers.addAddress(PeerAddress.localhost(params));                    
-                    }                                    
-                } else {
-                    int netboxNodes = Integer.valueOf((String) options.valueOf("netbox-nodes"));            
-                    int netboxPeers = Integer.valueOf((String) options.valueOf("netbox-peers"));            
-                    int serverPort = Integer.valueOf((String) options.valueOf("server-port"));
-                    peers.addPeerDiscovery(new NetboxDiscovery(netboxNodes, netboxPeers, serverPort));
-                    peers.setMaxConnections(netboxPeers);
-                }                
+                if (!options.has("server")) {
+                    log.info("Assuming regtest node on localhost");
+                    peers.addAddress(PeerAddress.localhost(params));                    
+                }                                    
+             } else if (params == NetboxParams.get()) {
+                int netboxPeers = Integer.valueOf((String) options.valueOf("netbox-peers"));            
+                peers.addPeerDiscovery(new NetboxDiscovery());
+                peers.setMaxConnections(netboxPeers);
             } else {
                 peers.addPeerDiscovery(new DnsDiscovery(params));
             }

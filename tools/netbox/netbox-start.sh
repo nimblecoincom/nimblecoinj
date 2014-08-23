@@ -19,12 +19,12 @@ fi
 echo "MINERS is $MINERS"
 PORT=19000
 DEBUG_PORT=20000
-rm data/regtest*
+rm data/netbox*
 rm logs/*
 for i in $(seq 1 $NODES)
 do
- ./simple-wallet-tool create --mode=FULL --net=REGTEST --wallet=data/regtest$i.wallet --chain=data/regtest$i.chain --debuglog 
- ./simple-wallet-tool add-key --mode=FULL --net=REGTEST --wallet=data/regtest$i.wallet --chain=data/regtest$i.chain --debuglog 
+ ./simple-wallet-tool create --mode=FULL --net=NETBOX --wallet=data/netbox$i.wallet --chain=data/netbox$i.chain --debuglog 
+ ./simple-wallet-tool add-key --mode=FULL --net=NETBOX --wallet=data/netbox$i.wallet --chain=data/netbox$i.chain --debuglog 
 done
 for i in $(seq 1 $NODES)
 do
@@ -42,5 +42,5 @@ do
 #  else
     DEBUG_PARAMS='-agentlib:jdwp=transport=dt_socket,address='$DEBUG_PORT',server=y,suspend=n'
 #  fi 
-  java -Xdebug $DEBUG_PARAMS -Djava.util.logging.config.file=file-logging.properties -server -jar ../target/nimblecoinj-tools-*.jar sync --mode=FULL --net=REGTEST --wallet=data/regtest$i.wallet --chain=data/regtest$i.chain --debuglog --server --server-port=$PORT --netbox --netbox-nodes=$NODES --netbox-peers=$PEERS $MINER_PARAMS --waitfor=EVER &
+  java -Xdebug $DEBUG_PARAMS -Djava.util.logging.config.file=file-logging.properties -server -jar ../target/nimblecoinj-tools-*.jar sync --mode=FULL --net=NETBOX --wallet=data/netbox$i.wallet --chain=data/netbox$i.chain --debuglog --server --server-port=$PORT --netbox-nodes=$NODES --netbox-peers=$PEERS $MINER_PARAMS --waitfor=EVER &
 done

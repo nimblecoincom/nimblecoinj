@@ -58,6 +58,8 @@ public abstract class NetworkParameters implements Serializable {
     public static final String ID_TESTNET = "org.bitcoin.test";
     /** The string returned by getId() for the regtest. */
     public static final String ID_REGTEST = "org.bitcoin.regtest";
+    /** The string returned by getId() for the betbox. */
+    public static final String ID_NETBOX = "org.bitcoin.netbox";
     /** Unit test network. */
     public static final String ID_UNITTESTNET = "com.google.bitcoin.unittest";
 
@@ -169,6 +171,12 @@ public abstract class NetworkParameters implements Serializable {
         return RegTestParams.get();
     }
 
+    /** Returns a standard netbox params*/
+    @Deprecated
+    public static NetworkParameters netbox() {
+        return NetboxParams.get();
+    }
+
     /**
      * A Java package style string acting as unique ID for these parameters
      */
@@ -199,6 +207,8 @@ public abstract class NetworkParameters implements Serializable {
             return TestNet3Params.get();
         } else if (id.equals(ID_REGTEST)) {
             return RegTestParams.get();
+        } else if (id.equals(ID_NETBOX)) {
+            return NetboxParams.get();
         } else if (id.equals(ID_UNITTESTNET)) {
             return UnitTestParams.get();
         } else {
