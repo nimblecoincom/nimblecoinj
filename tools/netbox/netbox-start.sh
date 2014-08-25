@@ -19,7 +19,7 @@ fi
 echo "MINERS is $MINERS"
 PORT=19000
 DEBUG_PORT=20000
-rm data/netbox*
+rm data/*
 rm logs/*
 for i in $(seq 1 $NODES)
 do

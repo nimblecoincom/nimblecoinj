@@ -1,13 +1,22 @@
 package com.google.bitcoin.params;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class NetboxParams extends RegTestParams{
     
+    private static final Logger log = LoggerFactory.getLogger(NetboxParams.class);
+
     private static NetboxParams instance;
     private int selfNode;
     // The number of the nodes to connect to
@@ -114,8 +123,31 @@ public class NetboxParams extends RegTestParams{
                 nodesToConnectTo.add(connection.to);
             }
         }
+        
+        saveGraphFileToDisk(netboxNodes, connections);
     }
     
+    private void saveGraphFileToDisk(int netboxNodes, List<NodeConnection> connections) {
+            try {
+                File graphFile = new File("data/graph" + selfNode + ".tgf");
+                FileWriter writer = new FileWriter(graphFile);
+                PrintWriter writer2 = new PrintWriter(writer);
+                for (int i = 0; i < netboxNodes; i++) {
+                    writer2.println((i+1) + " " + (i+1));
+                }
+                writer2.println("#");
+                for (NodeConnection nodeConnection : connections) {
+                    writer2.printf(nodeConnection.from + " " + nodeConnection.to + " %.2f", distances.get(nodeConnection));
+                    writer2.println();
+                }
+                writer2.close();
+            } catch (IOException e) {
+                log.error("Could nos dave node graph to file", e);
+            } finally {                
+            }
+                
+    }
+
     /**
      * A pair of nodes that should connect
      */

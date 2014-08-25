@@ -7,7 +7,7 @@ target
 
 *.jpage
 tools/testbox/data/regtest*
-tools/netbox/data/regtest*
+tools/netbox/data/*
 
 *.tmp
 *.log
