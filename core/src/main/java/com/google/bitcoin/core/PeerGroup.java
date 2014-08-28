@@ -1495,7 +1495,6 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         for (Peer peer : peers) {
             try {
                 if (peerToSkip==null || !peer.equals(peerToSkip)) {
-                    log.info("{}: Sending message {}", peer.getAddress(), message.getClass());                    
                     peer.sendMessage(message);                    
                 }
             } catch (Exception e) {

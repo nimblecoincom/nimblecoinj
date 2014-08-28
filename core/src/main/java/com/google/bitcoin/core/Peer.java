@@ -606,7 +606,7 @@ public class Peer extends PeerSocketHandler {
         
         Futures.addCallback(successful, new FutureCallback<List<Transaction>>() {
             public void onSuccess(List<Transaction> transactions) {
-                log.info("{}: I have all the transactions for the received PushTransactionList!", getAddress());
+                log.info("{}: I have all the transactions for received PushTransactionList for block {}!", getAddress(), m.getBlockHash());
                 Block block = blockHeader;
                 for (Transaction transaction : transactions) {
                     block.addTransaction(transaction);

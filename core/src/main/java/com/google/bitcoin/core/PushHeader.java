@@ -78,4 +78,12 @@ public class PushHeader extends Message {
     public Sha256Hash getHash() {
         return blockHeader.getHash();
     }
+
+    @Override
+    public String toString() {
+        return "PushHeader [blockHeader=" + blockHeader + "]";
+    }
+    
+    
+
 }

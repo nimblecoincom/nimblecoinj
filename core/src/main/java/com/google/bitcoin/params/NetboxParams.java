@@ -59,6 +59,8 @@ public class NetboxParams extends RegTestParams{
 
     public void initialize(int netboxNodes, int netboxPeers, int selfPort) {
         selfNode = selfPort - BASE_NETBOX_PORT;
+        
+        log.info("Initializing node {}", selfNode);
 
         // First lets build the entire graph 
         

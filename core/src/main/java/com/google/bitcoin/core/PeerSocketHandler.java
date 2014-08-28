@@ -86,9 +86,8 @@ public abstract class PeerSocketHandler extends AbstractTimeoutHandler implement
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
             serializer.serialize(message, out);
-            if (!(message instanceof Ping) && ! (message instanceof Pong)) log.info("{}: About to send {}", this, message.getClass());
             writeTarget.writeBytes(out.toByteArray());
-            if (!(message instanceof Ping) && ! (message instanceof Pong)) log.info("Sent!");
+            if (!(message instanceof Ping) && ! (message instanceof Pong)) log.info("{}: Sent {}", this, message.getClass());
         } catch (IOException e) {
             exceptionCaught(e);
         }
