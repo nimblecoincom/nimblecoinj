@@ -235,6 +235,11 @@ public class SPVBlockStore implements BlockStore {
     public Map<Date, Integer> getStaleBlocks(int period, int maxPeriod) throws BlockStoreException {
         throw new UnsupportedOperationException("Not implemented yet");
     }
+
+    @Override
+    public Map<Date, Integer> getBlocks(int period, int maxPeriod) throws BlockStoreException {
+        throw new UnsupportedOperationException("Not implemented yet");
+    }
     
     protected StoredBlock lastChainHead = null;
 

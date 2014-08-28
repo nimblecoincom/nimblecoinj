@@ -289,6 +289,11 @@ public class MemoryFullPrunedBlockStore implements FullPrunedBlockStore {
     public Map<Date, Integer> getStaleBlocks(int period, int maxPeriod) throws BlockStoreException {
         throw new UnsupportedOperationException("Not implemented yet");
     }
+
+    @Override
+    public Map<Date, Integer> getBlocks(int period, int maxPeriod) throws BlockStoreException {
+        throw new UnsupportedOperationException("Not implemented yet");
+    }
     
     @Nullable
     public synchronized StoredBlock getOnceUndoableStoredBlock(Sha256Hash hash) throws BlockStoreException {

@@ -28,9 +28,11 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -58,13 +60,14 @@ import com.google.common.collect.Lists;
 /**
  * A full pruned block store using the H2 pure-java embedded database.
  * 
- * Note that because of the heavy delete load on the database, during IBD,
- * you may see the database files grow quite large (around 1.5G).
- * H2 automatically frees some space at shutdown, so close()ing the database
- * decreases the space usage somewhat (to only around 1.3G).
+ * Note that because of the heavy delete load on the database, during IBD, you
+ * may see the database files grow quite large (around 1.5G). H2 automatically
+ * frees some space at shutdown, so close()ing the database decreases the space
+ * usage somewhat (to only around 1.3G).
  */
 public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
-    private static final Logger log = LoggerFactory.getLogger(H2FullPrunedBlockStore.class);
+    private static final Logger log = LoggerFactory
+            .getLogger(H2FullPrunedBlockStore.class);
 
     private Sha256Hash chainHeadHash;
     private StoredBlock chainHeadBlock;
@@ -78,52 +81,52 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
 
     static final String driver = "org.h2.Driver";
     static final String CREATE_SETTINGS_TABLE = "CREATE TABLE settings ( "
-        + "name VARCHAR(32) NOT NULL CONSTRAINT settings_pk PRIMARY KEY,"
-        + "value BLOB"
-        + ")";
+            + "name VARCHAR(32) NOT NULL CONSTRAINT settings_pk PRIMARY KEY,"
+            + "value BLOB" + ")";
     static final String CHAIN_HEAD_SETTING = "chainhead";
     static final String VERIFIED_CHAIN_HEAD_SETTING = "verifiedchainhead";
     static final String VERSION_SETTING = "version";
 
     static final String CREATE_HEADERS_TABLE = "CREATE TABLE headers ( "
-        + "hash BINARY(28) NOT NULL CONSTRAINT headers_pk PRIMARY KEY,"
-        + "chainWork BLOB NOT NULL,"
-        + "height INT NOT NULL,"
-        + "header BLOB NOT NULL,"
-        + "wasUndoable BOOL NOT NULL"
-        + ")";
-    
+            + "hash BINARY(28) NOT NULL CONSTRAINT headers_pk PRIMARY KEY,"
+            + "chainWork BLOB NOT NULL," + "height INT NOT NULL,"
+            + "header BLOB NOT NULL," + "wasUndoable BOOL NOT NULL" + ")";
+
     static final String CREATE_UNDOABLE_TABLE = "CREATE TABLE undoableBlocks ( "
-        + "hash BINARY(28) NOT NULL CONSTRAINT undoableBlocks_pk PRIMARY KEY,"
-        + "height INT NOT NULL,"
-        + "txOutChanges BLOB,"
-        + "transactions BLOB"
-        + ")";
+            + "hash BINARY(28) NOT NULL CONSTRAINT undoableBlocks_pk PRIMARY KEY,"
+            + "height INT NOT NULL,"
+            + "txOutChanges BLOB,"
+            + "transactions BLOB" + ")";
     static final String CREATE_UNDOABLE_TABLE_INDEX = "CREATE INDEX heightIndex ON undoableBlocks (height)";
-    
+
     static final String CREATE_OPEN_OUTPUT_TABLE = "CREATE TABLE openOutputs ("
-        + "hash BINARY(32) NOT NULL,"
-        + "index INT NOT NULL,"
-        + "height INT NOT NULL,"
-        + "value BLOB NOT NULL,"
-        + "scriptBytes BLOB NOT NULL,"
-        + "PRIMARY KEY (hash, index),"
-        + ")";
+            + "hash BINARY(32) NOT NULL," + "index INT NOT NULL,"
+            + "height INT NOT NULL," + "value BLOB NOT NULL,"
+            + "scriptBytes BLOB NOT NULL," + "PRIMARY KEY (hash, index)," + ")";
 
     /**
      * Creates a new H2FullPrunedBlockStore
-     * @param params A copy of the NetworkParameters used
-     * @param dbName The path to the database on disk
-     * @param fullStoreDepth The number of blocks of history stored in full (something like 1000 is pretty safe)
-     * @throws BlockStoreException if the database fails to open for any reason
+     * 
+     * @param params
+     *            A copy of the NetworkParameters used
+     * @param dbName
+     *            The path to the database on disk
+     * @param fullStoreDepth
+     *            The number of blocks of history stored in full (something like
+     *            1000 is pretty safe)
+     * @throws BlockStoreException
+     *             if the database fails to open for any reason
      */
-    public H2FullPrunedBlockStore(NetworkParameters params, String dbName, int fullStoreDepth) throws BlockStoreException {
+    public H2FullPrunedBlockStore(NetworkParameters params, String dbName,
+            int fullStoreDepth) throws BlockStoreException {
         this.params = params;
         this.fullStoreDepth = fullStoreDepth;
-        // We choose a very lax timeout to avoid the database throwing exceptions on complex operations, as time is not
+        // We choose a very lax timeout to avoid the database throwing
+        // exceptions on complex operations, as time is not
         // a particularly precious resource when just keeping up with the chain.
-        connectionURL = "jdbc:h2:tcp://localhost/" + dbName + ";create=true;LOCK_TIMEOUT=60000";        
-        
+        connectionURL = "jdbc:h2:tcp://localhost/" + dbName
+                + ";create=true;LOCK_TIMEOUT=60000";
+
         conn = new ThreadLocal<Connection>();
         allConnections = new LinkedList<Connection>();
 
@@ -133,9 +136,9 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
         } catch (java.lang.ClassNotFoundException e) {
             log.error("check CLASSPATH for H2 jar ", e);
         }
-        
+
         maybeConnect();
-        
+
         try {
             // Create tables if needed
             if (!tableExists("settings"))
@@ -145,20 +148,30 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             throw new BlockStoreException(e);
         }
     }
-    
+
     /**
      * Creates a new H2FullPrunedBlockStore with the given cache size
-     * @param params A copy of the NetworkParameters used
-     * @param dbName The path to the database on disk
-     * @param fullStoreDepth The number of blocks of history stored in full (something like 1000 is pretty safe)
-     * @param cacheSize The number of kilobytes to dedicate to H2 Cache (the default value of 16MB (16384) is a safe bet
-     *                  to achieve good performance/cost when importing blocks from disk, past 32MB makes little sense,
-     *                  and below 4MB sees a sharp drop in performance)
-     * @throws BlockStoreException if the database fails to open for any reason
+     * 
+     * @param params
+     *            A copy of the NetworkParameters used
+     * @param dbName
+     *            The path to the database on disk
+     * @param fullStoreDepth
+     *            The number of blocks of history stored in full (something like
+     *            1000 is pretty safe)
+     * @param cacheSize
+     *            The number of kilobytes to dedicate to H2 Cache (the default
+     *            value of 16MB (16384) is a safe bet to achieve good
+     *            performance/cost when importing blocks from disk, past 32MB
+     *            makes little sense, and below 4MB sees a sharp drop in
+     *            performance)
+     * @throws BlockStoreException
+     *             if the database fails to open for any reason
      */
-    public H2FullPrunedBlockStore(NetworkParameters params, String dbName, int fullStoreDepth, int cacheSize) throws BlockStoreException {
+    public H2FullPrunedBlockStore(NetworkParameters params, String dbName,
+            int fullStoreDepth, int cacheSize) throws BlockStoreException {
         this(params, dbName, fullStoreDepth);
-        
+
         try {
             Statement s = conn.get().createStatement();
             s.executeUpdate("SET CACHE_SIZE " + cacheSize);
@@ -167,12 +180,12 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             throw new BlockStoreException(e);
         }
     }
-    
+
     private synchronized void maybeConnect() throws BlockStoreException {
         try {
             if (conn.get() != null)
                 return;
-            
+
             conn.set(DriverManager.getConnection(connectionURL));
             allConnections.add(conn.get());
             log.info("Made a new connection to database " + connectionURL);
@@ -180,7 +193,7 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             throw new BlockStoreException(ex);
         }
     }
-    
+
     public synchronized void close() {
         for (Connection conn : allConnections) {
             try {
@@ -215,19 +228,22 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
 
         log.debug("H2FullPrunedBlockStore : CREATE settings table");
         s.executeUpdate(CREATE_SETTINGS_TABLE);
-        
+
         log.debug("H2FullPrunedBlockStore : CREATE undoable block table");
         s.executeUpdate(CREATE_UNDOABLE_TABLE);
-        
+
         log.debug("H2FullPrunedBlockStore : CREATE undoable block index");
         s.executeUpdate(CREATE_UNDOABLE_TABLE_INDEX);
-        
+
         log.debug("H2FullPrunedBlockStore : CREATE open output table");
         s.executeUpdate(CREATE_OPEN_OUTPUT_TABLE);
 
-        s.executeUpdate("INSERT INTO settings(name, value) VALUES('" + CHAIN_HEAD_SETTING + "', NULL)");
-        s.executeUpdate("INSERT INTO settings(name, value) VALUES('" + VERIFIED_CHAIN_HEAD_SETTING + "', NULL)");
-        s.executeUpdate("INSERT INTO settings(name, value) VALUES('" + VERSION_SETTING + "', '03')");
+        s.executeUpdate("INSERT INTO settings(name, value) VALUES('"
+                + CHAIN_HEAD_SETTING + "', NULL)");
+        s.executeUpdate("INSERT INTO settings(name, value) VALUES('"
+                + VERIFIED_CHAIN_HEAD_SETTING + "', NULL)");
+        s.executeUpdate("INSERT INTO settings(name, value) VALUES('"
+                + VERSION_SETTING + "', '03')");
         s.close();
         createNewStore(params);
     }
@@ -237,45 +253,56 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
         ResultSet rs = s.executeQuery("SHOW TABLES");
         while (rs.next())
             if (rs.getString(1).equalsIgnoreCase("openOutputsIndex"))
-                throw new BlockStoreException("Attempted to open a H2 database with an old schema, please reset database.");
-        
-        rs = s.executeQuery("SELECT value FROM settings WHERE name = '" + CHAIN_HEAD_SETTING + "'");
+                throw new BlockStoreException(
+                        "Attempted to open a H2 database with an old schema, please reset database.");
+
+        rs = s.executeQuery("SELECT value FROM settings WHERE name = '"
+                + CHAIN_HEAD_SETTING + "'");
         if (!rs.next()) {
-            throw new BlockStoreException("corrupt H2 block store - no chain head pointer");
+            throw new BlockStoreException(
+                    "corrupt H2 block store - no chain head pointer");
         }
         Sha256Hash hash = new Sha256Hash(rs.getBytes(1));
         rs.close();
         this.chainHeadBlock = get(hash);
         this.chainHeadHash = hash;
-        if (this.chainHeadBlock == null)
-        {
-            throw new BlockStoreException("corrupt H2 block store - head block not found");
+        if (this.chainHeadBlock == null) {
+            throw new BlockStoreException(
+                    "corrupt H2 block store - head block not found");
         }
-        
-        rs = s.executeQuery("SELECT value FROM settings WHERE name = '" + VERIFIED_CHAIN_HEAD_SETTING + "'");
+
+        rs = s.executeQuery("SELECT value FROM settings WHERE name = '"
+                + VERIFIED_CHAIN_HEAD_SETTING + "'");
         if (!rs.next()) {
-            throw new BlockStoreException("corrupt H2 block store - no verified chain head pointer");
+            throw new BlockStoreException(
+                    "corrupt H2 block store - no verified chain head pointer");
         }
         hash = new Sha256Hash(rs.getBytes(1));
         rs.close();
         s.close();
         this.verifiedChainHeadBlock = get(hash);
         this.verifiedChainHeadHash = hash;
-        if (this.verifiedChainHeadBlock == null)
-        {
-            throw new BlockStoreException("corrupt H2 block store - verified head block not found");
+        if (this.verifiedChainHeadBlock == null) {
+            throw new BlockStoreException(
+                    "corrupt H2 block store - verified head block not found");
         }
     }
 
-    private void createNewStore(NetworkParameters params) throws BlockStoreException {
+    private void createNewStore(NetworkParameters params)
+            throws BlockStoreException {
         try {
             // Set up the genesis block. When we start out fresh, it is by
             // definition the top of the chain.
-            StoredBlock storedGenesisHeader = new StoredBlock(params.getGenesisBlock().cloneAsHeader(), params.getGenesisBlock().getWork(), 0);
-            // The coinbase in the genesis block is not spendable. This is because of how the reference client inits
-            // its database - the genesis transaction isn't actually in the db so its spent flags can never be updated.
+            StoredBlock storedGenesisHeader = new StoredBlock(params
+                    .getGenesisBlock().cloneAsHeader(), params
+                    .getGenesisBlock().getWork(), 0);
+            // The coinbase in the genesis block is not spendable. This is
+            // because of how the reference client inits
+            // its database - the genesis transaction isn't actually in the db
+            // so its spent flags can never be updated.
             List<Transaction> genesisTransactions = Lists.newLinkedList();
-            StoredUndoableBlock storedGenesis = new StoredUndoableBlock(params.getGenesisBlock().getHash(), genesisTransactions);
+            StoredUndoableBlock storedGenesis = new StoredUndoableBlock(params
+                    .getGenesisBlock().getHash(), genesisTransactions);
             put(storedGenesisHeader, storedGenesis);
             setChainHead(storedGenesisHeader);
             setVerifiedChainHead(storedGenesisHeader);
@@ -287,7 +314,8 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
     private boolean tableExists(String table) throws SQLException {
         Statement s = conn.get().createStatement();
         try {
-            ResultSet results = s.executeQuery("SELECT * FROM " + table + " WHERE 1 = 2");
+            ResultSet results = s.executeQuery("SELECT * FROM " + table
+                    + " WHERE 1 = 2");
             results.close();
             return true;
         } catch (SQLException ex) {
@@ -296,11 +324,11 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             s.close();
         }
     }
-    
+
     /**
-     * Dumps information about the size of actual data in the database to standard output
-     * The only truly useless data counted is printed in the form "N in id indexes"
-     * This does not take database indexes into account
+     * Dumps information about the size of actual data in the database to
+     * standard output The only truly useless data counted is printed in the
+     * form "N in id indexes" This does not take database indexes into account
      */
     public void dumpSizes() throws SQLException, BlockStoreException {
         maybeConnect();
@@ -315,9 +343,12 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             count++;
         }
         rs.close();
-        System.out.printf("Settings size: %d, count: %d, average size: %f%n", size, count, (double)size/count);
-        
-        totalSize += size; size = 0; count = 0;
+        System.out.printf("Settings size: %d, count: %d, average size: %f%n",
+                size, count, (double) size / count);
+
+        totalSize += size;
+        size = 0;
+        count = 0;
         rs = s.executeQuery("SELECT chainWork, header FROM headers");
         while (rs.next()) {
             size += 28; // hash
@@ -327,9 +358,12 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             count++;
         }
         rs.close();
-        System.out.printf("Headers size: %d, count: %d, average size: %f%n", size, count, (double)size/count);
-        
-        totalSize += size; size = 0; count = 0;
+        System.out.printf("Headers size: %d, count: %d, average size: %f%n",
+                size, count, (double) size / count);
+
+        totalSize += size;
+        size = 0;
+        count = 0;
         rs = s.executeQuery("SELECT txOutChanges, transactions FROM undoableBlocks");
         while (rs.next()) {
             size += 28; // hash
@@ -344,9 +378,13 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             count++;
         }
         rs.close();
-        System.out.printf("Undoable Blocks size: %d, count: %d, average size: %f%n", size, count, (double)size/count);
-        
-        totalSize += size; size = 0; count = 0;
+        System.out.printf(
+                "Undoable Blocks size: %d, count: %d, average size: %f%n",
+                size, count, (double) size / count);
+
+        totalSize += size;
+        size = 0;
+        count = 0;
         long scriptSize = 0;
         rs = s.executeQuery("SELECT value, scriptBytes FROM openOutputs");
         while (rs.next()) {
@@ -359,24 +397,28 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             count++;
         }
         rs.close();
-        System.out.printf("Open Outputs size: %d, count: %d, average size: %f, average script size: %f (%d in id indexes)%n",
-                size, count, (double)size/count, (double)scriptSize/count, count * 8);
-        
+        System.out
+                .printf("Open Outputs size: %d, count: %d, average size: %f, average script size: %f (%d in id indexes)%n",
+                        size, count, (double) size / count, (double) scriptSize
+                                / count, count * 8);
+
         totalSize += size;
         System.out.println("Total Size: " + totalSize);
-        
+
         s.close();
     }
-    
-    
-    private void putUpdateStoredBlock(StoredBlock storedBlock, boolean wasUndoable) throws SQLException {
+
+    private void putUpdateStoredBlock(StoredBlock storedBlock,
+            boolean wasUndoable) throws SQLException {
         try {
-            PreparedStatement s =
-                    conn.get().prepareStatement("INSERT INTO headers(hash, chainWork, height, header, wasUndoable)"
+            PreparedStatement s = conn.get().prepareStatement(
+                    "INSERT INTO headers(hash, chainWork, height, header, wasUndoable)"
                             + " VALUES(?, ?, ?, ?, ?)");
-            // We skip the first 4 bytes because (on prodnet) the minimum target has 4 0-bytes
+            // We skip the first 4 bytes because (on prodnet) the minimum target
+            // has 4 0-bytes
             byte[] hashBytes = new byte[28];
-            System.arraycopy(storedBlock.getHeader().getHash().getBytes(), 3, hashBytes, 0, 28);
+            System.arraycopy(storedBlock.getHeader().getHash().getBytes(), 3,
+                    hashBytes, 0, 28);
             s.setBytes(1, hashBytes);
             s.setBytes(2, storedBlock.getChainWork().toByteArray());
             s.setInt(3, storedBlock.getHeight());
@@ -385,16 +427,20 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             s.executeUpdate();
             s.close();
         } catch (SQLException e) {
-            // It is possible we try to add a duplicate StoredBlock if we upgraded
+            // It is possible we try to add a duplicate StoredBlock if we
+            // upgraded
             // In that case, we just update the entry to mark it wasUndoable
             if (e.getErrorCode() != 23505 || !wasUndoable)
                 throw e;
-            
-            PreparedStatement s = conn.get().prepareStatement("UPDATE headers SET wasUndoable=? WHERE hash=?");
+
+            PreparedStatement s = conn.get().prepareStatement(
+                    "UPDATE headers SET wasUndoable=? WHERE hash=?");
             s.setBoolean(1, true);
-            // We skip the first 4 bytes because (on prodnet) the minimum target has 4 0-bytes
+            // We skip the first 4 bytes because (on prodnet) the minimum target
+            // has 4 0-bytes
             byte[] hashBytes = new byte[28];
-            System.arraycopy(storedBlock.getHeader().getHash().getBytes(), 3, hashBytes, 0, 28);
+            System.arraycopy(storedBlock.getHeader().getHash().getBytes(), 3,
+                    hashBytes, 0, 28);
             s.setBytes(2, hashBytes);
             s.executeUpdate();
             s.close();
@@ -409,22 +455,26 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             throw new BlockStoreException(e);
         }
     }
-    
-    public void put(StoredBlock storedBlock, StoredUndoableBlock undoableBlock) throws BlockStoreException {
+
+    public void put(StoredBlock storedBlock, StoredUndoableBlock undoableBlock)
+            throws BlockStoreException {
         maybeConnect();
-        // We skip the first 4 bytes because (on prodnet) the minimum target has 4 0-bytes
+        // We skip the first 4 bytes because (on prodnet) the minimum target has
+        // 4 0-bytes
         byte[] hashBytes = new byte[28];
-        System.arraycopy(storedBlock.getHeader().getHash().getBytes(), 3, hashBytes, 0, 28);
+        System.arraycopy(storedBlock.getHeader().getHash().getBytes(), 3,
+                hashBytes, 0, 28);
         int height = storedBlock.getHeight();
         byte[] transactions = null;
         byte[] txOutChanges = null;
         try {
             if (undoableBlock.getTxOutChanges() != null) {
                 ByteArrayOutputStream txOutChangesBos = new ByteArrayOutputStream();
-                undoableBlock.getTxOutChanges().serializeToStream(txOutChangesBos);
+                undoableBlock.getTxOutChanges().serializeToStream(
+                        txOutChangesBos);
                 txOutChanges = txOutChangesBos.toByteArray();
                 txOutChangesBos.close();
-            } 
+            }
             ByteArrayOutputStream transactionsBos = new ByteArrayOutputStream();
             int numTxn = undoableBlock.getTransactions().size();
             transactionsBos.write((int) (0xFF & (numTxn >> 0)));
@@ -438,11 +488,11 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
         } catch (IOException e) {
             throw new BlockStoreException(e);
         }
-        
+
         try {
             try {
-                PreparedStatement s =
-                        conn.get().prepareStatement("INSERT INTO undoableBlocks(hash, height, txOutChanges, transactions)"
+                PreparedStatement s = conn.get().prepareStatement(
+                        "INSERT INTO undoableBlocks(hash, height, txOutChanges, transactions)"
                                 + " VALUES(?, ?, ?, ?)");
                 s.setBytes(1, hashBytes);
                 s.setInt(2, height);
@@ -463,10 +513,11 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             } catch (SQLException e) {
                 if (e.getErrorCode() != 23505)
                     throw new BlockStoreException(e);
-                
-                // There is probably an update-or-insert statement, but it wasn't obvious from the docs
-                PreparedStatement s =
-                        conn.get().prepareStatement("UPDATE undoableBlocks SET txOutChanges=?, transactions=?"
+
+                // There is probably an update-or-insert statement, but it
+                // wasn't obvious from the docs
+                PreparedStatement s = conn.get().prepareStatement(
+                        "UPDATE undoableBlocks SET txOutChanges=?, transactions=?"
                                 + " WHERE hash = ?");
                 s.setBytes(3, hashBytes);
                 if (txOutChanges != null) {
@@ -485,7 +536,8 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
     }
 
     @Nullable
-    public StoredBlock get(Sha256Hash hash, boolean wasUndoableOnly) throws BlockStoreException {
+    public StoredBlock get(Sha256Hash hash, boolean wasUndoableOnly)
+            throws BlockStoreException {
         // Optimize for chain head
         if (chainHeadHash != null && chainHeadHash.equals(hash))
             return chainHeadBlock;
@@ -494,8 +546,11 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
         maybeConnect();
         PreparedStatement s = null;
         try {
-            s = conn.get().prepareStatement("SELECT chainWork, height, header, wasUndoable FROM headers WHERE hash = ?");
-            // We skip the first 4 bytes because (on prodnet) the minimum target has 4 0-bytes
+            s = conn.get()
+                    .prepareStatement(
+                            "SELECT chainWork, height, header, wasUndoable FROM headers WHERE hash = ?");
+            // We skip the first 4 bytes because (on prodnet) the minimum target
+            // has 4 0-bytes
             byte[] hashBytes = new byte[28];
             System.arraycopy(hash.getBytes(), 3, hashBytes, 0, 28);
             s.setBytes(1, hashBytes);
@@ -525,52 +580,60 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
                 try {
                     s.close();
                 } catch (SQLException e) {
-                    throw new BlockStoreException("Failed to close PreparedStatement");
+                    throw new BlockStoreException(
+                            "Failed to close PreparedStatement");
                 }
             }
         }
     }
-    
+
     @Override
-    public Map<Date, Integer> getStaleBlocks(int period, int maxPeriod) throws BlockStoreException {
-        Map<Integer, Integer> staleBlocksPerHeight = new HashMap<Integer , Integer>();
-        Map<Date, Integer> staleBlocksPerPeriod = new TreeMap<Date, Integer>(new Comparator<Date>() {
-            @Override
-            public int compare(Date o1, Date o2) {
-                return o2.compareTo(o1);
-            }
-            
-        });
+    public Map<Date, Integer> getStaleBlocks(int period, int maxPeriod)
+            throws BlockStoreException {
+        Map<Integer, Integer> staleBlocksPerHeight = new HashMap<Integer, Integer>();
+        Map<Date, Integer> staleBlocksPerPeriod = new TreeMap<Date, Integer>(
+                new Comparator<Date>() {
+                    @Override
+                    public int compare(Date o1, Date o2) {
+                        return o2.compareTo(o1);
+                    }
+
+                });
         int numberOfPeriods = maxPeriod / period;
         Date date = new Date();
         for (int i = 0; i < numberOfPeriods; i++) {
-           Date currentPeriodBegin = (Date) date.clone();
-           currentPeriodBegin.setTime(date.getTime() - (i+1) * period * 1000);
-           staleBlocksPerPeriod.put(currentPeriodBegin, 0);
+            Date currentPeriodBegin = (Date) date.clone();
+            currentPeriodBegin
+                    .setTime(date.getTime() - (i + 1) * period * 1000);
+            staleBlocksPerPeriod.put(currentPeriodBegin, 0);
         }
-        
+
         maybeConnect();
         PreparedStatement s = null;
         try {
-            s = conn.get().prepareStatement(" SELECT chainWork, height, header FROM headers" + 
-                                            " WHERE height in (SELECT height FROM headers GROUP BY height HAVING count(*)>1)");
+            s = conn.get()
+                    .prepareStatement(
+                            " SELECT chainWork, height, header FROM headers"
+                                    + " WHERE height in (SELECT height FROM headers GROUP BY height HAVING count(*)>1)");
             ResultSet results = s.executeQuery();
             while (results.next()) {
                 int height = results.getInt(2);
-                if  (staleBlocksPerHeight.get(height) != null) {
+                if (staleBlocksPerHeight.get(height) != null) {
                     Block b = new Block(params, results.getBytes(3));
                     Date blockDate = b.getTime();
                     Date blockPeriodBegin = null;
                     for (Date periodBegin : staleBlocksPerPeriod.keySet()) {
-                        if (periodBegin.before(blockDate)){
+                        if (periodBegin.before(blockDate)) {
                             blockPeriodBegin = periodBegin;
                             break;
                         }
                     }
-                    if (blockPeriodBegin!=null) {
-                        staleBlocksPerPeriod.put(blockPeriodBegin, staleBlocksPerPeriod.get(blockPeriodBegin)+1);                        
+                    if (blockPeriodBegin != null) {
+                        staleBlocksPerPeriod.put(blockPeriodBegin,
+                                staleBlocksPerPeriod.get(blockPeriodBegin) + 1);
                     }
-                    staleBlocksPerHeight.put(height, staleBlocksPerHeight.get(height) + 1);
+                    staleBlocksPerHeight.put(height,
+                            staleBlocksPerHeight.get(height) + 1);
                 } else {
                     staleBlocksPerHeight.put(height, 1);
                 }
@@ -589,44 +652,53 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
                 try {
                     s.close();
                 } catch (SQLException e) {
-                    throw new BlockStoreException("Failed to close PreparedStatement");
+                    throw new BlockStoreException(
+                            "Failed to close PreparedStatement");
                 }
             }
         }
         return staleBlocksPerPeriod;
     }
+
     
-    @Nullable
-    public StoredBlock get(Sha256Hash hash) throws BlockStoreException {
-        return get(hash, false);
-    }
-    
-    @Nullable
-    public StoredBlock getOnceUndoableStoredBlock(Sha256Hash hash) throws BlockStoreException {
-        return get(hash, true);
-    }
-    
-    public void printStoreTree() throws BlockStoreException {        
+    @Override
+    public Map<Date, Integer> getBlocks(int period, int maxPeriod) throws BlockStoreException {
+        Map<Date, Integer> blocksPerPeriod = new TreeMap<Date, Integer>(
+                new Comparator<Date>() {
+                    @Override
+                    public int compare(Date o1, Date o2) {
+                        return o2.compareTo(o1);
+                    }
+
+                });
+        int numberOfPeriods = maxPeriod / period;
+        Date date = new Date();
+        for (int i = 0; i < numberOfPeriods; i++) {
+            Date currentPeriodBegin = (Date) date.clone();
+            currentPeriodBegin.setTime(date.getTime() - (i + 1) * period * 1000);
+            blocksPerPeriod.put(currentPeriodBegin, 0);
+        }
+
         maybeConnect();
         PreparedStatement s = null;
-        Tree<Sha256Hash> tree = null;
         try {
             s = conn.get().prepareStatement("SELECT chainWork, height, header FROM headers");
             ResultSet results = s.executeQuery();
             while (results.next()) {
-                BigInteger chainWork = new BigInteger(results.getBytes(1));
                 int height = results.getInt(2);
                 Block b = new Block(params, results.getBytes(3));
-                StoredBlock sb = new StoredBlock(b, chainWork, height);
-                if (tree==null) {
-                    tree = new Tree<Sha256Hash>(sb.getHeader().getHash());                
-                } else {
-                    Tree<Sha256Hash> parent = tree.getTree(sb.getHeader().getPrevBlockHash());
-                    parent.addLeaf(sb.getHeader().getHash());
+                Date blockDate = b.getTime();
+                Date blockPeriodBegin = null;
+                for (Date periodBegin : blocksPerPeriod.keySet()) {
+                    if (periodBegin.before(blockDate)) {
+                        blockPeriodBegin = periodBegin;
+                        break;
+                    }
+                }
+                if (blockPeriodBegin != null) {
+                    blocksPerPeriod.put(blockPeriodBegin, blocksPerPeriod.get(blockPeriodBegin) + 1);
                 }
             }
-            log.info("Database block tree");
-            log.info(tree.toString());            
         } catch (SQLException ex) {
             throw new BlockStoreException(ex);
         } catch (ProtocolException e) {
@@ -641,20 +713,120 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
                 try {
                     s.close();
                 } catch (SQLException e) {
-                    throw new BlockStoreException("Failed to close PreparedStatement");
+                    throw new BlockStoreException(
+                            "Failed to close PreparedStatement");
                 }
             }
-        }        
-    }        
+        }
+        return blocksPerPeriod;
+    }
     
     @Nullable
-    public StoredUndoableBlock getUndoBlock(Sha256Hash hash) throws BlockStoreException {
+    public StoredBlock get(Sha256Hash hash) throws BlockStoreException {
+        return get(hash, false);
+    }
+
+    @Nullable
+    public StoredBlock getOnceUndoableStoredBlock(Sha256Hash hash)
+            throws BlockStoreException {
+        return get(hash, true);
+    }
+
+    public void printStoreTree() throws BlockStoreException {
+        maybeConnect();
+        PreparedStatement s = null;
+        Tree<Sha256Hash> tree = null;
+        try {
+            s = conn.get().prepareStatement(
+                    "SELECT chainWork, height, header FROM headers");
+            ResultSet results = s.executeQuery();
+            while (results.next()) {
+                BigInteger chainWork = new BigInteger(results.getBytes(1));
+                int height = results.getInt(2);
+                Block b = new Block(params, results.getBytes(3));
+                StoredBlock sb = new StoredBlock(b, chainWork, height);
+                if (tree == null) {
+                    tree = new Tree<Sha256Hash>(sb.getHeader().getHash());
+                } else {
+                    Tree<Sha256Hash> parent = tree.getTree(sb.getHeader()
+                            .getPrevBlockHash());
+                    parent.addLeaf(sb.getHeader().getHash());
+                }
+            }
+            log.info("Database block tree");
+            log.info(tree.toString());
+        } catch (SQLException ex) {
+            throw new BlockStoreException(ex);
+        } catch (ProtocolException e) {
+            // Corrupted database.
+            throw new BlockStoreException(e);
+        } catch (VerificationException e) {
+            // Should not be able to happen unless the database contains bad
+            // blocks.
+            throw new BlockStoreException(e);
+        } finally {
+            if (s != null) {
+                try {
+                    s.close();
+                } catch (SQLException e) {
+                    throw new BlockStoreException(
+                            "Failed to close PreparedStatement");
+                }
+            }
+        }
+    }
+
+    public void printChainGraph() throws BlockStoreException {
+        maybeConnect();
+        PreparedStatement s = null;
+        Collection<Block> blocks = new ArrayList<Block>();
+        System.out.println("Begin chain graph2");
+        try {
+            s = conn.get().prepareStatement(
+                    "SELECT header FROM headers");
+            ResultSet results = s.executeQuery();
+            while (results.next()) {
+                Block b = new Block(params, results.getBytes(1));
+                blocks.add(b);
+                System.out.println(b.getHashAsString().substring(45) + " " + b.getHashAsString().substring(45) + b.getTime());
+            }
+            System.out.println("#");
+            for (Block block : blocks) {
+                System.out.println(block.getPrevBlockHash().toString().substring(45) + " " + block.getHashAsString().substring(45));
+            }
+            System.out.println("End chain graph2");
+        } catch (SQLException ex) {
+            throw new BlockStoreException(ex);
+        } catch (ProtocolException e) {
+            // Corrupted database.
+            throw new BlockStoreException(e);
+        } catch (VerificationException e) {
+            // Should not be able to happen unless the database contains bad
+            // blocks.
+            throw new BlockStoreException(e);
+        } finally {
+            if (s != null) {
+                try {
+                    s.close();
+                } catch (SQLException e) {
+                    throw new BlockStoreException(
+                            "Failed to close PreparedStatement");
+                }
+            }
+        }
+    }
+ 
+    @Nullable
+    public StoredUndoableBlock getUndoBlock(Sha256Hash hash)
+            throws BlockStoreException {
         maybeConnect();
         PreparedStatement s = null;
         try {
             s = conn.get()
-                .prepareStatement("SELECT txOutChanges, transactions FROM undoableBlocks WHERE hash = ?");
-            // We skip the first 4 bytes because (on prodnet) the minimum target has 4 0-bytes
+                    .prepareStatement(
+                            "SELECT txOutChanges, transactions FROM undoableBlocks WHERE hash = ?");
+            // We skip the first 4 bytes because (on prodnet) the minimum target
+            // has 4 0-bytes
             byte[] hashBytes = new byte[28];
             System.arraycopy(hash.getBytes(), 3, hashBytes, 0, 28);
             s.setBytes(1, hashBytes);
@@ -667,10 +839,10 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             byte[] transactions = results.getBytes(2);
             StoredUndoableBlock block;
             int offset = 0;
-            int numTxn = ((transactions[offset++] & 0xFF) << 0) |
-                         ((transactions[offset++] & 0xFF) << 8) |
-                         ((transactions[offset++] & 0xFF) << 16) |
-                         ((transactions[offset++] & 0xFF) << 24);
+            int numTxn = ((transactions[offset++] & 0xFF) << 0)
+                    | ((transactions[offset++] & 0xFF) << 8)
+                    | ((transactions[offset++] & 0xFF) << 16)
+                    | ((transactions[offset++] & 0xFF) << 24);
             List<Transaction> transactionList = new LinkedList<Transaction>();
             for (int i = 0; i < numTxn; i++) {
                 Transaction tx = new Transaction(params, transactions, offset);
@@ -680,9 +852,10 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             if (txOutChanges == null) {
                 block = new StoredUndoableBlock(hash, transactionList);
             } else {
-                TransactionOutputChanges outChangesObject =
-                        new TransactionOutputChanges(new ByteArrayInputStream(txOutChanges));
-                block = new StoredUndoableBlock(hash, transactionList, outChangesObject);
+                TransactionOutputChanges outChangesObject = new TransactionOutputChanges(
+                        new ByteArrayInputStream(txOutChanges));
+                block = new StoredUndoableBlock(hash, transactionList,
+                        outChangesObject);
             }
             return block;
         } catch (SQLException ex) {
@@ -703,64 +876,73 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             if (s != null)
                 try {
                     s.close();
-                } catch (SQLException e) { throw new BlockStoreException("Failed to close PreparedStatement"); }
+                } catch (SQLException e) {
+                    throw new BlockStoreException(
+                            "Failed to close PreparedStatement");
+                }
         }
     }
 
-    
     @Nullable
-    public List<StoredUndoableBlock> getUndoBlocksUsingTransaction(Sha256Hash txHash) throws BlockStoreException {
+    public List<StoredUndoableBlock> getUndoBlocksUsingTransaction(
+            Sha256Hash txHash) throws BlockStoreException {
         List<StoredUndoableBlock> undoableBlocks = new ArrayList<StoredUndoableBlock>();
         maybeConnect();
         PreparedStatement s = null;
         try {
-            s = conn.get()
-                .prepareStatement("SELECT txOutChanges, transactions, header FROM undoableBlocks, headers "
-                               + " WHERE undoableBlocks.hash = headers.hash");
+            s = conn.get().prepareStatement(
+                    "SELECT txOutChanges, transactions, header FROM undoableBlocks, headers "
+                            + " WHERE undoableBlocks.hash = headers.hash");
             ResultSet results = s.executeQuery();
             while (results.next()) {
                 byte[] txOutChanges = results.getBytes(1);
                 byte[] transactions = results.getBytes(2);
                 StoredUndoableBlock storedUndoableBlock;
                 int offset = 0;
-                int numTxn = ((transactions[offset++] & 0xFF) << 0) |
-                             ((transactions[offset++] & 0xFF) << 8) |
-                             ((transactions[offset++] & 0xFF) << 16) |
-                             ((transactions[offset++] & 0xFF) << 24);
+                int numTxn = ((transactions[offset++] & 0xFF) << 0)
+                        | ((transactions[offset++] & 0xFF) << 8)
+                        | ((transactions[offset++] & 0xFF) << 16)
+                        | ((transactions[offset++] & 0xFF) << 24);
                 List<Transaction> transactionList = new LinkedList<Transaction>();
                 for (int i = 0; i < numTxn; i++) {
-                    Transaction tx = new Transaction(params, transactions, offset);
+                    Transaction tx = new Transaction(params, transactions,
+                            offset);
                     transactionList.add(tx);
                     offset += tx.getMessageSize();
                 }
                 Block block = new Block(params, results.getBytes(3));
                 if (txOutChanges == null) {
-                    storedUndoableBlock = new StoredUndoableBlock(block.getHash(), transactionList);
+                    storedUndoableBlock = new StoredUndoableBlock(
+                            block.getHash(), transactionList);
                 } else {
-                    TransactionOutputChanges outChangesObject =
-                            new TransactionOutputChanges(new ByteArrayInputStream(txOutChanges));
-                    storedUndoableBlock = new StoredUndoableBlock(block.getHash(), transactionList, outChangesObject);
+                    TransactionOutputChanges outChangesObject = new TransactionOutputChanges(
+                            new ByteArrayInputStream(txOutChanges));
+                    storedUndoableBlock = new StoredUndoableBlock(
+                            block.getHash(), transactionList, outChangesObject);
                 }
                 boolean found = false;
-                for (Transaction transaction : storedUndoableBlock.getTransactions()) {
+                for (Transaction transaction : storedUndoableBlock
+                        .getTransactions()) {
                     if (transaction.getHash().equals(txHash)) {
                         found = true;
                         break;
                     }
                 }
-                if (storedUndoableBlock.getTxOutChanges()!=null) {
-                    for (StoredTransactionOutput transaction : storedUndoableBlock.getTxOutChanges().txOutsCreated) {
+                if (storedUndoableBlock.getTxOutChanges() != null) {
+                    for (StoredTransactionOutput transaction : storedUndoableBlock
+                            .getTxOutChanges().txOutsCreated) {
                         if (transaction.getHash().equals(txHash)) {
                             found = true;
                             break;
                         }
-                    }                    
-                    for (StoredTransactionOutput transaction : storedUndoableBlock.getTxOutChanges().txOutsSpent) {
+                    }
+                    for (StoredTransactionOutput transaction : storedUndoableBlock
+                            .getTxOutChanges().txOutsSpent) {
                         if (transaction.getHash().equals(txHash)) {
                             found = true;
                             break;
                         }
-                    }                    
+                    }
                 }
                 if (found) {
                     undoableBlocks.add(storedUndoableBlock);
@@ -785,10 +967,13 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             if (s != null)
                 try {
                     s.close();
-                } catch (SQLException e) { throw new BlockStoreException("Failed to close PreparedStatement"); }
+                } catch (SQLException e) {
+                    throw new BlockStoreException(
+                            "Failed to close PreparedStatement");
+                }
         }
     }
-    
+
     public StoredBlock getChainHead() throws BlockStoreException {
         return chainHeadBlock;
     }
@@ -799,8 +984,8 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
         this.chainHeadBlock = chainHead;
         maybeConnect();
         try {
-            PreparedStatement s = conn.get()
-                .prepareStatement("UPDATE settings SET value = ? WHERE name = ?");
+            PreparedStatement s = conn.get().prepareStatement(
+                    "UPDATE settings SET value = ? WHERE name = ?");
             s.setString(2, CHAIN_HEAD_SETTING);
             s.setBytes(1, hash.getBytes());
             s.executeUpdate();
@@ -809,19 +994,20 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             throw new BlockStoreException(ex);
         }
     }
-    
+
     public StoredBlock getVerifiedChainHead() throws BlockStoreException {
         return verifiedChainHeadBlock;
     }
 
-    public void setVerifiedChainHead(StoredBlock chainHead) throws BlockStoreException {
+    public void setVerifiedChainHead(StoredBlock chainHead)
+            throws BlockStoreException {
         Sha256Hash hash = chainHead.getHeader().getHash();
         this.verifiedChainHeadHash = hash;
         this.verifiedChainHeadBlock = chainHead;
         maybeConnect();
         try {
-            PreparedStatement s = conn.get()
-                .prepareStatement("UPDATE settings SET value = ? WHERE name = ?");
+            PreparedStatement s = conn.get().prepareStatement(
+                    "UPDATE settings SET value = ? WHERE name = ?");
             s.setString(2, VERIFIED_CHAIN_HEAD_SETTING);
             s.setBytes(1, hash.getBytes());
             s.executeUpdate();
@@ -831,13 +1017,15 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
         }
         if (this.chainHeadBlock.getHeight() < chainHead.getHeight())
             setChainHead(chainHead);
-        removeUndoableBlocksWhereHeightIsLessThan(chainHead.getHeight() - fullStoreDepth);
+        removeUndoableBlocksWhereHeightIsLessThan(chainHead.getHeight()
+                - fullStoreDepth);
     }
 
-    private void removeUndoableBlocksWhereHeightIsLessThan(int height) throws BlockStoreException {
+    private void removeUndoableBlocksWhereHeightIsLessThan(int height)
+            throws BlockStoreException {
         try {
-            PreparedStatement s = conn.get()
-                .prepareStatement("DELETE FROM undoableBlocks WHERE height <= ?");
+            PreparedStatement s = conn.get().prepareStatement(
+                    "DELETE FROM undoableBlocks WHERE height <= ?");
             s.setInt(1, height);
             s.executeUpdate();
             s.close();
@@ -847,16 +1035,17 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
     }
 
     @Nullable
-    public StoredTransactionOutput getTransactionOutput(Sha256Hash hash, long index) throws BlockStoreException {
+    public StoredTransactionOutput getTransactionOutput(Sha256Hash hash,
+            long index) throws BlockStoreException {
         maybeConnect();
         PreparedStatement s = null;
         try {
-            s = conn.get()
-                .prepareStatement("SELECT height, value, scriptBytes FROM openOutputs " +
-                        "WHERE hash = ? AND index = ?");
+            s = conn.get().prepareStatement(
+                    "SELECT height, value, scriptBytes FROM openOutputs "
+                            + "WHERE hash = ? AND index = ?");
             s.setBytes(1, hash.getBytes());
             // index is actually an unsigned int
-            s.setInt(2, (int)index);
+            s.setInt(2, (int) index);
             ResultSet results = s.executeQuery();
             if (!results.next()) {
                 return null;
@@ -864,27 +1053,34 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             // Parse it.
             int height = results.getInt(1);
             BigInteger value = new BigInteger(results.getBytes(2));
-            // Tell the StoredTransactionOutput that we are a coinbase, as that is encoded in height
-            return new StoredTransactionOutput(hash, index, value, height, true, results.getBytes(3));
+            // Tell the StoredTransactionOutput that we are a coinbase, as that
+            // is encoded in height
+            return new StoredTransactionOutput(hash, index, value, height,
+                    true, results.getBytes(3));
         } catch (SQLException ex) {
             throw new BlockStoreException(ex);
         } finally {
             if (s != null)
                 try {
                     s.close();
-                } catch (SQLException e) { throw new BlockStoreException("Failed to close PreparedStatement"); }
+                } catch (SQLException e) {
+                    throw new BlockStoreException(
+                            "Failed to close PreparedStatement");
+                }
         }
     }
 
-    public void addUnspentTransactionOutput(StoredTransactionOutput out) throws BlockStoreException {
+    public void addUnspentTransactionOutput(StoredTransactionOutput out)
+            throws BlockStoreException {
         maybeConnect();
         PreparedStatement s = null;
         try {
-            s = conn.get().prepareStatement("INSERT INTO openOutputs (hash, index, height, value, scriptBytes) " +
-                    "VALUES (?, ?, ?, ?, ?)");
+            s = conn.get().prepareStatement(
+                    "INSERT INTO openOutputs (hash, index, height, value, scriptBytes) "
+                            + "VALUES (?, ?, ?, ?, ?)");
             s.setBytes(1, out.getHash().getBytes());
             // index is actually an unsigned int
-            s.setInt(2, (int)out.getIndex());
+            s.setInt(2, (int) out.getIndex());
             s.setInt(3, out.getHeight());
             s.setBytes(4, out.getValue().toByteArray());
             s.setBytes(5, out.getScriptBytes());
@@ -897,23 +1093,27 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             if (s != null)
                 try {
                     s.close();
-                } catch (SQLException e) { throw new BlockStoreException(e); }
+                } catch (SQLException e) {
+                    throw new BlockStoreException(e);
+                }
         }
     }
 
-    public void removeUnspentTransactionOutput(StoredTransactionOutput out) throws BlockStoreException {
+    public void removeUnspentTransactionOutput(StoredTransactionOutput out)
+            throws BlockStoreException {
         maybeConnect();
         try {
-            PreparedStatement s = conn.get()
-                .prepareStatement("DELETE FROM openOutputs WHERE hash = ? AND index = ?");
+            PreparedStatement s = conn.get().prepareStatement(
+                    "DELETE FROM openOutputs WHERE hash = ? AND index = ?");
             s.setBytes(1, out.getHash().getBytes());
             // index is actually an unsigned int
-            s.setInt(2, (int)out.getIndex());
+            s.setInt(2, (int) out.getIndex());
             s.executeUpdate();
             int updateCount = s.getUpdateCount();
             s.close();
             if (updateCount == 0)
-                throw new BlockStoreException("Tried to remove a StoredTransactionOutput from H2FullPrunedBlockStore that it didn't have!");
+                throw new BlockStoreException(
+                        "Tried to remove a StoredTransactionOutput from H2FullPrunedBlockStore that it didn't have!");
         } catch (SQLException e) {
             throw new BlockStoreException(e);
         }
@@ -948,16 +1148,18 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
         }
     }
 
-    public boolean hasUnspentOutputs(Sha256Hash hash, int numOutputs) throws BlockStoreException {
+    public boolean hasUnspentOutputs(Sha256Hash hash, int numOutputs)
+            throws BlockStoreException {
         maybeConnect();
         PreparedStatement s = null;
         try {
-            s = conn.get()
-                .prepareStatement("SELECT COUNT(*) FROM openOutputs WHERE hash = ?");
+            s = conn.get().prepareStatement(
+                    "SELECT COUNT(*) FROM openOutputs WHERE hash = ?");
             s.setBytes(1, hash.getBytes());
             ResultSet results = s.executeQuery();
             if (!results.next()) {
-                throw new BlockStoreException("Got no results from a COUNT(*) query");
+                throw new BlockStoreException(
+                        "Got no results from a COUNT(*) query");
             }
             int count = results.getInt(1);
             return count != 0;
@@ -967,7 +1169,10 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             if (s != null)
                 try {
                     s.close();
-                } catch (SQLException e) { throw new BlockStoreException("Failed to close PreparedStatement"); }
+                } catch (SQLException e) {
+                    throw new BlockStoreException(
+                            "Failed to close PreparedStatement");
+                }
         }
     }
 }

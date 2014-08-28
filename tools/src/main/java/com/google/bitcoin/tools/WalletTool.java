@@ -1019,7 +1019,12 @@ public class WalletTool {
         if (options.has("stales-max")) {
             maxPeriod = Integer.valueOf((String) options.valueOf("stales-max"));
         }        
-        Map<Date,Integer> map = store.getStaleBlocks(period, maxPeriod);
+        Map<Date,Integer> map = store.getBlocks(period, maxPeriod);
+        System.out.println("Blocks");
+        for (Date periodBegin : map.keySet()) {
+            System.out.println(periodBegin + " : " + map.get(periodBegin));            
+        }
+        map = store.getStaleBlocks(period, maxPeriod);
         System.out.println("Stale Blocks");
         for (Date periodBegin : map.keySet()) {
             System.out.println(periodBegin + " : " + map.get(periodBegin));            

@@ -68,6 +68,11 @@ public class MemoryBlockStore implements BlockStore {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
+    @Override
+    public Map<Date, Integer> getBlocks(int period, int maxPeriod) throws BlockStoreException {
+        throw new UnsupportedOperationException("Not implemented yet");
+    }
+    
     public StoredBlock getChainHead() throws BlockStoreException {
         if (blockMap == null) throw new BlockStoreException("MemoryBlockStore is closed");
         return chainHead;

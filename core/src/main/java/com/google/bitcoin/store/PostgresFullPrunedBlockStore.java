@@ -614,6 +614,11 @@ public class PostgresFullPrunedBlockStore implements FullPrunedBlockStore {
     public Map<Date, Integer> getStaleBlocks(int period, int maxPeriod) throws BlockStoreException {
         throw new UnsupportedOperationException("Not implemented yet");
     }
+
+    @Override
+    public Map<Date, Integer> getBlocks(int period, int maxPeriod) throws BlockStoreException {
+        throw new UnsupportedOperationException("Not implemented yet");
+    }
     
     public StoredUndoableBlock getUndoBlock(Sha256Hash hash) throws BlockStoreException {
         maybeConnect();
