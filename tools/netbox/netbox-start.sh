@@ -25,9 +25,6 @@ for i in $(seq 1 $NODES)
 do
  ./simple-wallet-tool create --mode=FULL --net=NETBOX --wallet=data/netbox$i.wallet --chain=data/netbox$i.chain --debuglog 
  ./simple-wallet-tool add-key --mode=FULL --net=NETBOX --wallet=data/netbox$i.wallet --chain=data/netbox$i.chain --debuglog 
-done
-for i in $(seq 1 $NODES)
-do
   PORT=$((PORT + 1))  
   DEBUG_PORT=$((DEBUG_PORT + 1))  
   if test $i -le $MINERS
