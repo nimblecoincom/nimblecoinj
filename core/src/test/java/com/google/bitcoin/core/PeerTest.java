@@ -357,6 +357,64 @@ public class PeerTest extends TestWithNetworkConnections {
         closePeer(peer);
     }
     
+    
+    @Test
+    public void shouldProcessReceivedMessage() throws Exception {
+        // A full end-to-end test of the chain download process, with a new block being solved in the middle.
+        Block b1 = createFakeBlock(blockStore).block;
+        Block b2 = makeSolvedTestBlock(b1);
+        Block b3 = makeSolvedTestBlock(b2);
+
+        connect();
+
+        InventoryMessage inv = new InventoryMessage(unitTestParams);
+        inv.addBlock(b1);
+
+        // Message 1
+        inbound(writeTarget, inv);
+        GetDataMessage getdata = (GetDataMessage)outbound(writeTarget);
+        assertEquals(b1.getHash(), getdata.getItems().get(0).hash);
+
+        // Message 2-7
+        for (int i = 0; i < 6; i++) {
+            inbound(writeTarget, inv);
+            Message nullMessage = outbound(writeTarget);
+            assertNull(nullMessage);            
+        }
+        
+        // Message 8
+        inbound(writeTarget, inv);
+        getdata = (GetDataMessage)outbound(writeTarget);
+        assertEquals(b1.getHash(), getdata.getItems().get(0).hash);
+
+        // Message 9-15
+        for (int i = 0; i < 7; i++) {
+            inbound(writeTarget, inv);
+            Message nullMessage = outbound(writeTarget);
+            assertNull(nullMessage);            
+        }
+        
+        // Message 16
+        inbound(writeTarget, inv);
+        getdata = (GetDataMessage)outbound(writeTarget);
+        assertEquals(b1.getHash(), getdata.getItems().get(0).hash);
+
+        // Message 17-31
+        for (int i = 0; i < 15; i++) {
+            inbound(writeTarget, inv);
+            Message nullMessage = outbound(writeTarget);
+            assertNull(nullMessage);            
+        }
+        
+        // Message 32
+        inbound(writeTarget, inv);
+        getdata = (GetDataMessage)outbound(writeTarget);
+        assertEquals(b1.getHash(), getdata.getItems().get(0).hash);
+        
+        
+    }
+    
+    
     // Check that an inventory tickle is processed correctly when downloading missing blocks is active.
     @Test
     public void invTickle() throws Exception {

@@ -38,12 +38,15 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 import javax.annotation.Nullable;
@@ -104,7 +107,8 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     private static final Logger log = LoggerFactory.getLogger(PeerGroup.class);
     protected final ReentrantLock lock = Threading.lock("peergroup");
 
-    Set<MessageIdentifier> receivedMessages = Collections.synchronizedSet(new HashSet<MessageIdentifier>());
+    //Key=Message Identifier, Value=number of times the message was received
+    ConcurrentMap<MessageIdentifier, AtomicInteger> receivedMessages = new ConcurrentHashMap<MessageIdentifier, AtomicInteger>();
     
     // Addresses to try to connect to, excluding active peers.
     @GuardedBy("lock") private Queue<PeerAddress> inactives;
@@ -289,9 +293,6 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     /** The default timeout between when a connection attempt begins and version message exchange completes */
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 500000;
     private volatile int vConnectTimeoutMillis = DEFAULT_CONNECT_TIMEOUT_MILLIS;
-
-    // Blocks for which we have already sent a getdata
-    private final HashSet<Sha256Hash> pendingBlockDownloads = new HashSet<Sha256Hash>();
     
     //Whether to start a socket server accepting incoming connections
     private boolean startServer = false;
@@ -1685,12 +1686,12 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         }
     }
     
-    HashSet<Sha256Hash> getPendingBlockDownloads() {
-        return pendingBlockDownloads;
-    }
-    
-    public Set<MessageIdentifier> getReceivedMessages() {
-        return receivedMessages;
+    public boolean shouldProcessReceivedMessage(MessageIdentifier messageIdentifier) {
+        receivedMessages.putIfAbsent(messageIdentifier, new AtomicInteger(0));
+        int numberOfTimesTheMessageWasReceived = receivedMessages.get(messageIdentifier).incrementAndGet();
+        // if numberOfTimesTheMessageWasReceived is power of 2, process message
+        boolean isPowerOf2 = (numberOfTimesTheMessageWasReceived & (numberOfTimesTheMessageWasReceived - 1)) == 0;        
+        return isPowerOf2 && numberOfTimesTheMessageWasReceived!=2 && numberOfTimesTheMessageWasReceived!=4;
     }
     
 }

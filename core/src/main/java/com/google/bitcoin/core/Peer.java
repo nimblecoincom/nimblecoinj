@@ -529,8 +529,8 @@ public class Peer extends PeerSocketHandler {
         }
         
         MessageIdentifier messageIdentifier = new MessageIdentifier(m.getClass(), m.getHash());
-        boolean wasNew = peerGroup.getReceivedMessages().add(messageIdentifier);
-        if (!wasNew) return;
+        boolean shouldProcess = peerGroup.shouldProcessReceivedMessage(messageIdentifier);
+        if (!shouldProcess) return;
         
 
         try {
@@ -554,8 +554,8 @@ public class Peer extends PeerSocketHandler {
         }
         
         MessageIdentifier messageIdentifier = new MessageIdentifier(m.getClass(), m.getHash());
-        boolean wasNew = peerGroup.getReceivedMessages().add(messageIdentifier);
-        if (!wasNew) return;
+        boolean shouldProcess = peerGroup.shouldProcessReceivedMessage(messageIdentifier);
+        if (!shouldProcess) return;
 
         
         final Sha256Hash blockHash = m.getBlockHash();
@@ -672,8 +672,8 @@ public class Peer extends PeerSocketHandler {
             for (int i = 0; i < m.getBlockHeaders().size(); i++) {
                 Block header = m.getBlockHeaders().get(i);
                 MessageIdentifier messageIdentifier = new MessageIdentifier(m.getClass(), header.getHash());
-                boolean wasNew = peerGroup.getReceivedMessages().add(messageIdentifier);
-                if (!wasNew) continue;
+                boolean shouldProcess = peerGroup.shouldProcessReceivedMessage(messageIdentifier);
+                if (!shouldProcess) continue;
                 
                 // Process headers until we pass the fast catchup time, or are about to catch up with the head
                 // of the chain - always process the last block as a full/filtered block to kick us out of the
@@ -824,8 +824,8 @@ public class Peer extends PeerSocketHandler {
         // Check a few basic syntax issues to ensure the received TX isn't nonsense.
         tx.verify();
         MessageIdentifier messageIdentifier = new MessageIdentifier(tx.getClass(), tx.getHash());
-        boolean wasNew = peerGroup.getReceivedMessages().add(messageIdentifier);
-        if (!wasNew) return;
+        boolean shouldProcess = peerGroup.shouldProcessReceivedMessage(messageIdentifier);
+        if (!shouldProcess) return;
         final Transaction fTx;
         lock.lock();
         try {
@@ -1072,11 +1072,10 @@ public class Peer extends PeerSocketHandler {
             return;
         }
         */
-        peerGroup.getPendingBlockDownloads().remove(m.getHash());
 
         MessageIdentifier messageIdentifier = new MessageIdentifier(m.getClass(), m.getHash());
-        boolean wasNew = peerGroup.getReceivedMessages().add(messageIdentifier);
-        if (!wasNew) return;
+        boolean shouldProcess = peerGroup.shouldProcessReceivedMessage(messageIdentifier);
+        if (!shouldProcess) return;
         
         try {
             // Otherwise it's a block sent to us because the peer thought we needed it, so add it to the block chain.
@@ -1138,7 +1137,6 @@ public class Peer extends PeerSocketHandler {
         // Note that we currently do nothing about peers which maliciously do not include transactions which
         // actually match our filter or which simply do not send us all the transactions we need: it can be fixed
         // by cross-checking peers against each other.
-        peerGroup.getPendingBlockDownloads().remove(m.getBlockHeader().getHash());
         try {
             // Otherwise it's a block sent to us because the peer thought we needed it, so add it to the block chain.
             // The FilteredBlock m here contains a list of hashes, and may contain Transaction objects for a subset
@@ -1231,8 +1229,8 @@ public class Peer extends PeerSocketHandler {
 
         for (InventoryItem item : items) {
             MessageIdentifier messageIdentifier = new MessageIdentifier(inv.getClass(), item.hash);
-            boolean wasNew = peerGroup.getReceivedMessages().add(messageIdentifier);
-            if (wasNew) {
+            boolean shouldProcess = peerGroup.shouldProcessReceivedMessage(messageIdentifier);
+            if (shouldProcess) {
                 switch (item.type) {
                     case Transaction:
                         transactions.add(item);
@@ -1308,26 +1306,11 @@ public class Peer extends PeerSocketHandler {
                         final Block orphanRoot = checkNotNull(blockChain.getOrphanRoot(item.hash));
                         blockChainDownloadLocked(orphanRoot.getHash());
                     } else {
-                        // Don't re-request blocks we already requested. Normally this should not happen. However there is
-                        // an edge case: if a block is solved and we complete the inv<->getdata<->block<->getblocks cycle
-                        // whilst other parts of the chain are streaming in, then the new getblocks request won't match the
-                        // previous one: whilst the stopHash is the same (because we use the orphan root), the start hash
-                        // will be different and so the getblocks req won't be dropped as a duplicate. We'll end up
-                        // requesting a subset of what we already requested, which can lead to parallel chain downloads
-                        // and other nastyness. So we just do a quick removal of redundant getdatas here too.
-                        //
-                        // Note that as of June 2012 the Satoshi client won't actually ever interleave blocks pushed as
-                        // part of chain download with newly announced blocks, so it should always be taken care of by
-                        // the duplicate check in blockChainDownloadLocked(). But the satoshi client may change in future so
-                        // it's better to be safe here.
-                        if (!peerGroup.getPendingBlockDownloads().contains(item.hash)) {
-                            if (vPeerVersionMessage.isBloomFilteringSupported() && useFilteredBlocks) {
-                                getdata.addItem(new InventoryItem(InventoryItem.Type.FilteredBlock, item.hash));
-                                pingAfterGetData = true;
-                            } else {
-                                getdata.addItem(item);
-                            }
-                            peerGroup.getPendingBlockDownloads().add(item.hash);
+                        if (vPeerVersionMessage.isBloomFilteringSupported() && useFilteredBlocks) {
+                            getdata.addItem(new InventoryItem(InventoryItem.Type.FilteredBlock, item.hash));
+                            pingAfterGetData = true;
+                        } else {
+                            getdata.addItem(item);
                         }
                     }
                 }
