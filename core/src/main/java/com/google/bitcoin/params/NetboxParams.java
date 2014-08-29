@@ -22,6 +22,7 @@ public class NetboxParams extends RegTestParams{
     // The number of the nodes to connect to
     private List<Integer> nodesToConnectTo;
     private Map<NodeConnection, Double> distances;
+    Map<Integer,Point> nodePoints;
     // Base port for net in a box test. Nodes should accept connections on port 19001, 19002, etc.
     public final static int BASE_NETBOX_PORT = 19000;
 
@@ -65,7 +66,7 @@ public class NetboxParams extends RegTestParams{
         // First lets build the entire graph 
         
         // Random with harcoded seed to generate always the same result.
-        Random random = new Random(1);
+        Random random = new Random(2);
         // The graph of connections (not just from/to this node, all the connections in the network) 
         List<NodeConnection> connections = new ArrayList<NodeConnection>();
         //key=node number, value=number of connections from/to the node
@@ -102,7 +103,7 @@ public class NetboxParams extends RegTestParams{
             }
         } while (nodesWithNotEnoughConnections.size()>1);
 
-        Map<Integer,Point> nodePoints = new HashMap<Integer, Point>();
+        nodePoints = new HashMap<Integer, Point>();
         for (int i = 0; i < netboxNodes; i++) {
             int x = (int) Math.round(random.nextDouble()*100);
             int y = (int) Math.round(random.nextDouble()*100);
@@ -126,30 +127,72 @@ public class NetboxParams extends RegTestParams{
             }
         }
         
-        saveGraphFileToDisk(netboxNodes, connections);
+        saveGraphTgfFileToDisk(netboxNodes, connections);
+        saveGraphGmlFileToDisk(netboxNodes, connections);
     }
     
-    private void saveGraphFileToDisk(int netboxNodes, List<NodeConnection> connections) {
-            try {
-                File graphFile = new File("data/graph" + selfNode + ".tgf");
-                FileWriter writer = new FileWriter(graphFile);
-                PrintWriter writer2 = new PrintWriter(writer);
-                for (int i = 0; i < netboxNodes; i++) {
-                    writer2.println((i+1) + " " + (i+1));
-                }
-                writer2.println("#");
-                for (NodeConnection nodeConnection : connections) {
-                    writer2.printf(nodeConnection.from + " " + nodeConnection.to + " %.2f", distances.get(nodeConnection));
-                    writer2.println();
-                }
-                writer2.close();
-            } catch (IOException e) {
-                log.error("Could nos dave node graph to file", e);
-            } finally {                
+    private void saveGraphTgfFileToDisk(int netboxNodes, List<NodeConnection> connections) {
+        try {
+            File graphFile = new File("data/graph" + selfNode + ".tgf");
+            FileWriter writer = new FileWriter(graphFile);
+            PrintWriter writer2 = new PrintWriter(writer);
+            for (int i = 0; i < netboxNodes; i++) {
+                writer2.println((i+1) + " " + (i+1));
             }
-                
+            writer2.println("#");
+            for (NodeConnection nodeConnection : connections) {
+                writer2.printf(nodeConnection.from + " " + nodeConnection.to + " %.2f", distances.get(nodeConnection));
+                writer2.println();
+            }
+            writer2.close();
+        } catch (IOException e) {
+            log.error("Could nos dave node graph to file", e);
+        } finally {                
+        }                
     }
 
+    private void saveGraphGmlFileToDisk(int netboxNodes, List<NodeConnection> connections) {
+        try {
+            File graphFile = new File("data/graph" + selfNode + ".gml");
+            FileWriter writer = new FileWriter(graphFile);
+            PrintWriter writer2 = new PrintWriter(writer);
+            writer2.println("graph");
+            writer2.println("[");
+            writer2.println("   hierarchic  1");
+            writer2.println("   label   \"\"");
+            writer2.println("   directed    1");
+            for (int i = 0; i < netboxNodes; i++) {
+                writer2.println("   node");
+                writer2.println("   [");
+                writer2.println("      id  " + (i+1));
+                writer2.println("      label   \"" + (i+1) + "\"");
+                writer2.println("      graphics");
+                writer2.println("      [");
+                writer2.println("         x   " + nodePoints.get(i+1).x*10);
+                writer2.println("         y   " + nodePoints.get(i+1).y*10);
+                writer2.println("         type    \"rectangle\"");
+                writer2.println("         fill    \"#FFCC00\"");
+                writer2.println("         outline \"#000000\"");
+                writer2.println("      ]");
+                writer2.println("   ]");
+            }
+            for (NodeConnection nodeConnection : connections) {
+                writer2.println("   edge");
+                writer2.println("   [");
+                writer2.println("      source  " + nodeConnection.from);
+                writer2.println("      target  " + nodeConnection.to);
+                writer2.printf("      label   \"%.2f\"", distances.get(nodeConnection));
+                writer2.println();
+                writer2.println("    ]");
+            }
+            writer2.println("]");
+            writer2.close();
+        } catch (IOException e) {
+            log.error("Could nos dave node graph to file", e);
+        } finally {                
+        }                
+    }    
+    
     /**
      * A pair of nodes that should connect
      */
