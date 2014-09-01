@@ -683,4 +683,8 @@ public class Utils {
         }
         return maxItem;
     }
+    
+    public static boolean isPowerOf2(long positiveValue) {
+        return (positiveValue & (positiveValue - 1)) == 0;
+    }
 }

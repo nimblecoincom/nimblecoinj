@@ -1690,7 +1690,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         receivedMessages.putIfAbsent(messageIdentifier, new AtomicInteger(0));
         int numberOfTimesTheMessageWasReceived = receivedMessages.get(messageIdentifier).incrementAndGet();
         // if numberOfTimesTheMessageWasReceived is power of 2, process message
-        boolean isPowerOf2 = (numberOfTimesTheMessageWasReceived & (numberOfTimesTheMessageWasReceived - 1)) == 0;        
+        boolean isPowerOf2 = Utils.isPowerOf2(numberOfTimesTheMessageWasReceived);        
         return isPowerOf2 && numberOfTimesTheMessageWasReceived!=2 && numberOfTimesTheMessageWasReceived!=4;
     }
     

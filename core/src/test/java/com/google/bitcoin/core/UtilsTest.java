@@ -152,5 +152,17 @@ public class UtilsTest {
         assertEquals(value, Utils.encodeCompactBits(Utils.decodeCompactBits(value)));
     	value = 0x8fffffffl;
         assertEquals(value, Utils.encodeCompactBits(Utils.decodeCompactBits(value)));
-    }    
+    }
+    
+    @Test
+    public void testIsPowerOf2() throws Exception {
+        assertEquals(true, Utils.isPowerOf2(1));
+        assertEquals(true, Utils.isPowerOf2(2));
+        assertEquals(true, Utils.isPowerOf2(4));
+        assertEquals(true, Utils.isPowerOf2(8));
+        assertEquals(true, Utils.isPowerOf2(16));
+        assertEquals(true, Utils.isPowerOf2(32));
+        assertEquals(false, Utils.isPowerOf2(5));
+        assertEquals(false, Utils.isPowerOf2(24));
+    }
 }
