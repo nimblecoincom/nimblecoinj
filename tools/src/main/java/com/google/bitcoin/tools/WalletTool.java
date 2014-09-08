@@ -266,6 +266,7 @@ public class WalletTool {
                 .defaultsTo(CompetitivePolicy.LOWER_HASH);
         parser.accepts("netbox-nodes").withRequiredArg();
         parser.accepts("netbox-peers").withRequiredArg();
+        parser.accepts("accept-udp");
         options = parser.parse(args);
 
         final String HELP_TEXT = Resources.toString(WalletTool.class.getResource("wallet-tool-help.txt"), Charsets.UTF_8);
@@ -816,14 +817,18 @@ public class WalletTool {
         
         // This will ensure the wallet is saved when it changes.
         wallet.autosaveToFile(walletFile, 200, TimeUnit.MILLISECONDS, null);
-        if (!options.has("server")) {
-            peers = new PeerGroup(params, chain, new BlockingClientManager());    
-        } else if (!options.has("server-port")) {
-            peers = new PeerGroup(params, chain, new BlockingClientManager(), true);                
+
+        boolean startServer = options.has("server");
+        int serverPort;
+        if (options.has("server-port")) {
+            serverPort = Integer.valueOf((String) options.valueOf("server-port"));            
         } else {
-            int serverPort = Integer.valueOf((String) options.valueOf("server-port"));
-            peers = new PeerGroup(params, chain, new BlockingClientManager(), true, serverPort);                
-        }
+            serverPort = params.getPort();                        
+        }        
+        boolean acceptUdp = options.has("accept-udp");
+
+        peers = new PeerGroup(params, chain, new BlockingClientManager(serverPort, acceptUdp), startServer, serverPort, acceptUdp);                
+        
         peers.setUserAgent("WalletTool", "1.0");
         peers.addWallet(wallet);
         if (options.has("peers")) {

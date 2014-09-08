@@ -44,11 +44,16 @@ public class VersionMessage extends Message {
     public static final int NODE_NETWORK = 1;
 
     /**
+     * A services flag that denotes whether the peer accept udp messages or not
+     */
+    public static final int ACCEPT_UDP = 2;
+    
+    /**
      * The version number of the protocol spoken.
      */
     public int clientVersion;
     /**
-     * Flags defining what is supported. Right now {@link #NODE_NETWORK} is the only flag defined.
+     * Flags defining what is supported. Right now {@link #NODE_NETWORK} and {@link #ACCEPT_UDP} are the only flag defined.
      */
     public long localServices;
     /**
@@ -96,13 +101,13 @@ public class VersionMessage extends Message {
     
     /** Equivalent to VersionMessage(params, newBestHeight, true) */
     public VersionMessage(NetworkParameters params, int newBestHeight) {
-        this(params, newBestHeight, true, false);
+        this(params, newBestHeight, true, false, params.getPort(), false);
     }
 
-    public VersionMessage(NetworkParameters params, int newBestHeight, boolean relayTxesBeforeFilter, boolean hasACopyOfTheBlockChain ) {
+    public VersionMessage(NetworkParameters params, int newBestHeight, boolean relayTxesBeforeFilter, boolean hasACopyOfTheBlockChain, int serverPort, boolean acceptUdp) {
         super(params);
         clientVersion = NetworkParameters.PROTOCOL_VERSION;
-        localServices = hasACopyOfTheBlockChain ? 1 : 0;
+        localServices = (hasACopyOfTheBlockChain ? 1 : 0) | (acceptUdp ? 2 : 0);
         time = System.currentTimeMillis() / 1000;
         // Note that the official client doesn't do anything with these, and finding out your own external IP address
         // is kind of tricky anyway, so we just put nonsense here for now.
@@ -110,7 +115,7 @@ public class VersionMessage extends Message {
             // We hard-code the IPv4 localhost address here rather than use InetAddress.getLocalHost() because some
             // mobile phones have broken localhost DNS entries, also, this is faster.
             final byte[] localhost = { 127, 0, 0, 1 };
-            myAddr = new PeerAddress(InetAddress.getByAddress(localhost), params.getPort(), 0);
+            myAddr = new PeerAddress(InetAddress.getByAddress(localhost), serverPort, 0);
             theirAddr = new PeerAddress(InetAddress.getByAddress(localhost), params.getPort(), 0);
         } catch (UnknownHostException e) {
             throw new RuntimeException(e);  // Cannot happen (illegal IP length).
@@ -183,9 +188,6 @@ public class VersionMessage extends Message {
         } catch (IOException e) {
             throw new RuntimeException(e);  // Can't happen.
         }
-        // Next up is the "local host nonce", this is to detect the case of connecting
-        // back to yourself. We don't care about this as we won't be accepting inbound 
-        // connections.
         Utils.uint32ToByteStreamLE(nonce, buf);
         Utils.uint32ToByteStreamLE(nonce >> 32, buf);
         // Now comes subVer.
@@ -209,6 +211,13 @@ public class VersionMessage extends Message {
         return (localServices & NODE_NETWORK) == NODE_NETWORK;
     }
 
+    /**
+     * Returns true if the version message indicates the sender accept udp connections
+     */
+    public boolean acceptUdp() {
+        return (localServices & ACCEPT_UDP) == ACCEPT_UDP;
+    }
+    
     @Override
     public boolean equals(Object o) {
         if (!(o instanceof VersionMessage)) return false;
@@ -262,7 +271,7 @@ public class VersionMessage extends Message {
     }
 
     public VersionMessage duplicate() {
-        VersionMessage v = new VersionMessage(params, (int) bestHeight, relayTxesBeforeFilter, hasBlockChain());
+        VersionMessage v = new VersionMessage(params, (int) bestHeight, relayTxesBeforeFilter, hasBlockChain(), this.myAddr.getPort(), acceptUdp());
         v.clientVersion = clientVersion;
         v.localServices = localServices;
         v.time = time;

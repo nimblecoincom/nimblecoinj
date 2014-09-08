@@ -21,6 +21,10 @@ import static com.google.common.base.Preconditions.checkState;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
@@ -44,8 +48,12 @@ public class BlockingClient implements MessageWriteTarget {
     private static final int BUFFER_SIZE_LOWER_BOUND = 4096;
     private static final int BUFFER_SIZE_UPPER_BOUND = 65536;
 
+    private StreamParser parser; 
     private ByteBuffer dbuf;
     private Socket socket;
+    private DatagramSocket datagramSocket;
+    private InetAddress udpAddress; 
+    private int udpPort; 
     private volatile boolean vCloseRequested = false;
 
     /**
@@ -60,18 +68,24 @@ public class BlockingClient implements MessageWriteTarget {
      *                      how this client connects to the internet. If not sure, use SocketFactory.getDefault()
      * @param clientSet A set which this object will add itself to after initialization, and then remove itself from
      */
-    public BlockingClient(final SocketAddress serverAddress, final StreamParser parser,
+    public BlockingClient(final SocketAddress serverAddress, DatagramSocket _datagramSocket, final StreamParser parser,
                           final int connectTimeoutMillis, final SocketFactory socketFactory, @Nullable final Set<BlockingClient> clientSet) throws IOException {
         init(parser);
+        this.parser = parser; 
         socket = socketFactory.createSocket();
+        datagramSocket = _datagramSocket;
+        InetSocketAddress inetSocketAddress = (InetSocketAddress) serverAddress;
+        udpAddress = inetSocketAddress.getAddress();
         Thread t = new SocketThread(clientSet, false, serverAddress, connectTimeoutMillis, parser);
         t.start();
     }
 
-    public BlockingClient(Socket _socket, StreamParserFactory parserFactory, final Set<BlockingClient> clientSet) {
-        final StreamParser parser = parserFactory.getNewParser(_socket.getInetAddress(), _socket.getPort());
+    public BlockingClient(Socket _socket, DatagramSocket _datagramSocket, StreamParserFactory parserFactory, final Set<BlockingClient> clientSet) {
+        StreamParser parser = parserFactory.getNewParser(_socket.getInetAddress(), _socket.getPort());
         init(parser);
+        this.parser = parser; 
         socket = _socket;
+        datagramSocket = _datagramSocket;
         Thread t = new SocketThread(clientSet, true, socket.getRemoteSocketAddress(), 0, parser);
         t.start();
     }
@@ -163,7 +177,7 @@ public class BlockingClient implements MessageWriteTarget {
     }
 
     @Override
-    public synchronized void writeBytes(byte[] message) throws IOException {
+    public synchronized void writeBytesTCP(byte[] message) throws IOException {
         try {
             OutputStream stream = socket.getOutputStream();
             stream.write(message);
@@ -174,4 +188,26 @@ public class BlockingClient implements MessageWriteTarget {
             throw e;
         }
     }
+    
+    @Override
+    public void setUDPPort(int udpPort) throws IOException {
+        this.udpPort = udpPort;        
+    }
+    
+    @Override
+    public synchronized void writeBytesUDP(byte[] message) throws IOException {
+        try {            
+            DatagramPacket packet = new DatagramPacket(message, message.length, udpAddress, udpPort);
+            datagramSocket.send(packet);
+        } catch (IOException e) {
+            log.error("Error writing message to connection, closing connection", e);
+            closeConnection();
+            throw e;
+        }
+    }
+
+    public void receiveBytesUDP(byte[] bytes, int offset, int length) {
+        parser.receiveBytesUDP(bytes, offset, length);
+    }
+    
 }

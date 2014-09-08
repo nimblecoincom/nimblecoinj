@@ -62,6 +62,11 @@ public class NioClient implements MessageWriteTarget {
         public int receiveBytes(ByteBuffer buff) throws Exception {
             return upstreamParser.receiveBytes(buff);
         }
+        
+        @Override
+        public void receiveBytesUDP(byte[] bytes, int offset, int length) {
+            upstreamParser.receiveBytesUDP(bytes, offset, length);            
+        }
 
         @Override
         public synchronized void setWriteTarget(MessageWriteTarget writeTarget) {
@@ -103,7 +108,18 @@ public class NioClient implements MessageWriteTarget {
     }
 
     @Override
-    public synchronized void writeBytes(byte[] message) throws IOException {
-        handler.writeTarget.writeBytes(message);
+    public void setUDPPort(int udpPort) throws IOException {
+        handler.writeTarget.setUDPPort(udpPort);
     }
+    
+    @Override
+    public synchronized void writeBytesTCP(byte[] message) throws IOException {
+        handler.writeTarget.writeBytesTCP(message);
+    }
+    
+    @Override
+    public synchronized void writeBytesUDP(byte[] message) throws IOException {
+        handler.writeTarget.writeBytesUDP(message);
+    }
+    
 }

@@ -23,9 +23,17 @@ import java.io.IOException;
  */
 public interface MessageWriteTarget {
     /**
-     * Writes the given bytes to the remote server.
+     * Sets the UDP port of the receiver
      */
-    void writeBytes(byte[] message) throws IOException;
+    void setUDPPort(int udpPort) throws IOException;
+    /**
+     * Writes the given bytes to the remote server via the UDP socket.
+     */
+    void writeBytesUDP(byte[] message) throws IOException;
+    /**
+     * Writes the given bytes to the remote server via the TCP socket.
+     */
+    void writeBytesTCP(byte[] message) throws IOException;
     /**
      * Closes the connection to the server, triggering the {@link StreamParser#connectionClosed()}
      * event on the network-handling thread where all callbacks occur.

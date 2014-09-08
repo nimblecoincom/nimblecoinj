@@ -45,4 +45,14 @@ public abstract class InboundMessageQueuer extends PeerSocketHandler {
         }
         inboundMessages.offer(m);
     }
+    
+    @Override
+    protected void processUDPMessage(long nodeId, Message message) {
+        throw new UnsupportedOperationException();
+    }
+    
+    @Override
+    protected long getSelfNodeId() {
+        throw new UnsupportedOperationException();
+    }
 }

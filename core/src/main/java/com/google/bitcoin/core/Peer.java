@@ -260,7 +260,7 @@ public class Peer extends PeerSocketHandler {
      * used to keep track of which peers relayed transactions and offer more descriptive logging.</p>
      */
     public Peer(PeerGroup peerGroup, NetworkParameters params, AbstractBlockChain blockChain, PeerAddress peerAddress, String thisSoftwareName, String thisSoftwareVersion) {
-        this(peerGroup, params, new VersionMessage(params, blockChain.getBestChainHeight(), true, blockChain.shouldVerifyTransactions()), blockChain, peerAddress);
+        this(peerGroup, params, new VersionMessage(params, blockChain.getBestChainHeight(), true, blockChain.shouldVerifyTransactions(), params.getPort(), false), blockChain, peerAddress);
         this.versionMessage.appendToSubVer(thisSoftwareName, thisSoftwareVersion, null);
     }
 
@@ -351,7 +351,19 @@ public class Peer extends PeerSocketHandler {
     public ListenableFuture<Peer> getConnectionOpenFuture() {
         return connectionOpenFuture;
     }
+    
+    private enum TransportProtocol {TCP, UDP};
 
+    @Override
+    protected void processUDPMessage(long nodeId, Message m) {
+        if(vPeerVersionMessage.getNonce() == nodeId) {
+            maybeDelay(m);
+            if (m instanceof PushHeader) {
+                processPushHeader((PushHeader) m, TransportProtocol.UDP);
+            }
+        }        
+    }
+    
     protected void processMessage(Message m) throws Exception {
         maybeDelay(m);
         if (!(m instanceof Ping) && ! (m instanceof Pong)) {        
@@ -381,7 +393,7 @@ public class Peer extends PeerSocketHandler {
             // Because NotFoundMessage is a subclass of InventoryMessage, the test for it must come before the next.
             processNotFoundMessage((NotFoundMessage) m);
         } else if (m instanceof PushHeader) {
-            processPushHeader((PushHeader) m);
+            processPushHeader((PushHeader) m, TransportProtocol.TCP);
         } else if (m instanceof PushTransactionList) {
             processPushTransactionList((PushTransactionList) m);
         } else if (m instanceof InventoryMessage) {
@@ -521,7 +533,7 @@ public class Peer extends PeerSocketHandler {
     }
     
     
-    private void processPushHeader(PushHeader m) {
+    private void processPushHeader(PushHeader m, TransportProtocol transportProtocol) {
         if (blockChain == null) {
             // Can happen if we are receiving unrequested data, or due to programmer error.
             log.warn("Received pushheader when Peer is not configured with a chain.");
@@ -537,7 +549,11 @@ public class Peer extends PeerSocketHandler {
             Block header = m.getBlockHeader();
             if (blockChain.addHeaderWaitingForItsTransactions(header)) {
                 // The block was successfully added to headersWaitingForItsTransactions
-                peerGroup.broadcastMessage(m, this);
+                if (transportProtocol.equals(TransportProtocol.TCP)) {
+                    peerGroup.broadcastMessage(m, this);                    
+                } else {
+                    peerGroup.broadcastUDPMessage(m, this);
+                }
             }
                 
         } catch (VerificationException e) {
@@ -1779,5 +1795,9 @@ public class Peer extends PeerSocketHandler {
         }
     }
     
+    @Override
+    protected long getSelfNodeId() {
+        return versionMessage.getNonce();
+    }
     
 }

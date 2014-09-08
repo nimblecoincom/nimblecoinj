@@ -59,7 +59,7 @@ public class TestWithPeerGroup extends TestWithNetworkConnections {
         if (clientType == ClientType.NIO_CLIENT_MANAGER)
             peerGroup = new PeerGroup(unitTestParams, blockChain, new NioClientManager());
         else
-            peerGroup = new PeerGroup(unitTestParams, blockChain, new BlockingClientManager());
+            peerGroup = new PeerGroup(unitTestParams, blockChain, new BlockingClientManager(unitTestParams));
         peerGroup.setPingIntervalMsec(0);  // Disable the pings as they just get in the way of most tests.
     }
 

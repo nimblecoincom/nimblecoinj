@@ -42,5 +42,5 @@ public interface ClientConnectionManager extends Service {
     /**
      * Start a server socket and accept incoming connections 
      */
-    void acceptConnections(int serverPort, StreamParserFactory parserFactory);
+    void acceptConnections(StreamParserFactory parserFactory);
 }

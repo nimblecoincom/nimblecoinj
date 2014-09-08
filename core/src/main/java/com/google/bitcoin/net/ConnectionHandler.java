@@ -19,10 +19,12 @@ package com.google.bitcoin.net;
 import com.google.bitcoin.core.Message;
 import com.google.bitcoin.utils.Threading;
 import com.google.common.base.Throwables;
+
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.CancelledKeyException;
@@ -133,7 +135,7 @@ class ConnectionHandler implements MessageWriteTarget {
     }
 
     @Override
-    public void writeBytes(byte[] message) throws IOException {
+    public void writeBytesTCP(byte[] message) throws IOException {
         lock.lock();
         try {
             // Network buffers are not unlimited (and are often smaller than some messages we may wish to send), and
@@ -160,6 +162,16 @@ class ConnectionHandler implements MessageWriteTarget {
             throw new IOException(e);
         }
         lock.unlock();
+    }
+    
+    @Override
+    public void setUDPPort(int udpPort) throws IOException {
+        throw new UnsupportedOperationException();        
+    }
+    
+    @Override
+    public void writeBytesUDP(byte[] message) throws IOException {
+        throw new UnsupportedOperationException();        
     }
 
     @Override

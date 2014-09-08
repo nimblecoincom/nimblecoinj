@@ -16,14 +16,9 @@
 
 package com.google.bitcoin.core;
 
-import com.google.bitcoin.net.AbstractTimeoutHandler;
-import com.google.bitcoin.net.MessageWriteTarget;
-import com.google.bitcoin.net.StreamParser;
-import com.google.bitcoin.utils.Threading;
-import com.google.common.annotations.VisibleForTesting;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -34,7 +29,14 @@ import java.nio.ByteBuffer;
 import java.nio.channels.NotYetConnectedException;
 import java.util.concurrent.locks.Lock;
 
-import static com.google.common.base.Preconditions.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.bitcoin.net.AbstractTimeoutHandler;
+import com.google.bitcoin.net.MessageWriteTarget;
+import com.google.bitcoin.net.StreamParser;
+import com.google.bitcoin.utils.Threading;
+import com.google.common.annotations.VisibleForTesting;
 
 /**
  * Handles high-level message (de)serialization for peers, acting as the bridge between the
@@ -86,13 +88,36 @@ public abstract class PeerSocketHandler extends AbstractTimeoutHandler implement
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
             serializer.serialize(message, out);
-            writeTarget.writeBytes(out.toByteArray());
+            writeTarget.writeBytesTCP(out.toByteArray());
             if (!(message instanceof Ping) && ! (message instanceof Pong)) log.info("{}: Sent {}", this, message.getClass());
         } catch (IOException e) {
             exceptionCaught(e);
         }
     }
 
+
+    public void sendUDPMessage(Message message) throws NotYetConnectedException {
+        lock.lock();
+        try {
+            if (writeTarget == null)
+                throw new NotYetConnectedException();
+        } finally {
+            lock.unlock();
+        }
+        // TODO: Some round-tripping could be avoided here
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            Utils.int64ToByteStreamLE(getSelfNodeId(), out);
+            serializer.serialize(message, out);
+            writeTarget.writeBytesUDP(out.toByteArray());
+            log.info("{}: UDP Sent {}", this, message.getClass());
+        } catch (IOException e) {
+            exceptionCaught(e);
+        }
+    }
+    
+    protected abstract long getSelfNodeId();
+    
     /**
      * Closes the connection to the peer if one exists, or immediately closes the connection as soon as it opens
      */
@@ -120,6 +145,12 @@ public abstract class PeerSocketHandler extends AbstractTimeoutHandler implement
      */
     protected abstract void processMessage(Message m) throws Exception;
 
+    /**
+     * Called every time a message is received from UDP
+     */
+    protected abstract void processUDPMessage(long nodeId, Message message);
+    
+    
     @Override
     public int receiveBytes(ByteBuffer buff) {
         checkArgument(buff.position() == 0 &&
@@ -184,6 +215,22 @@ public abstract class PeerSocketHandler extends AbstractTimeoutHandler implement
             return -1; // Returning -1 also throws an IllegalStateException upstream and kills the connection
         }
     }
+    
+    @Override
+    public void receiveBytesUDP(byte[] bytes, int offset, int length) {
+        try {
+            long nodeId = Utils.readInt64(bytes, offset);
+            offset = offset + 6;
+            ByteBuffer buff = ByteBuffer.allocateDirect(65536);
+            buff.put(bytes, offset, length);
+            Message message = serializer.deserialize(buff);
+            processUDPMessage(nodeId, message);
+        } catch (Exception e) {
+            exceptionCaught(e);
+        }
+        
+    }
+
 
     /**
      * Sets the {@link MessageWriteTarget} used to write messages to the peer. This should almost never be called, it is

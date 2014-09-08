@@ -298,6 +298,9 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     private boolean startServer = false;
     //Port to start as a server if startServer==true
     private int serverPort;
+    //Whether to accept udp messages
+    private boolean acceptUdp = false;
+    
 
     /**
      * Creates a PeerGroup with the given parameters. No chain is provided so this node will report its chain height
@@ -340,6 +343,15 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
      */
     public PeerGroup(NetworkParameters params, @Nullable AbstractBlockChain chain, 
                      ClientConnectionManager connectionManager, boolean startServer, int serverPort) {
+        this(params, chain, connectionManager, startServer, serverPort, false);
+    }
+    
+    /**
+     * Creates a new PeerGroup allowing you to specify whether to start a server listening to client sockets 
+     * and/or accept udp messages
+     */
+    public PeerGroup(NetworkParameters params, @Nullable AbstractBlockChain chain, 
+                     ClientConnectionManager connectionManager, boolean startServer, int serverPort, boolean acceptUdp) {
         this.params = checkNotNull(params);
         this.chain = chain;
         this.fastCatchupTimeSecs = params.getGenesisBlock().getTimeSeconds();
@@ -353,7 +365,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
 
         int height = chain == null ? 0 : chain.getBestChainHeight();
         // We never request that the remote node wait for a bloom filter yet, as we have no wallets
-        this.versionMessage = new VersionMessage(params, height, true, chain.shouldVerifyTransactions());
+        this.versionMessage = new VersionMessage(params, height, true, chain.shouldVerifyTransactions(), serverPort, acceptUdp);
         this.versionMessage.myAddr.setPort(serverPort);
 
         this.downloadTxDependencies = true;
@@ -379,7 +391,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         runningBroadcasts = Collections.synchronizedSet(new HashSet<TransactionBroadcast>());
         this.startServer = startServer;
         this.serverPort = serverPort;
-       
+        this.acceptUdp = acceptUdp;
     }
 
     /**
@@ -520,7 +532,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         //TODO Check that height is needed here (it wasnt, but it should be, no?)
         int height = chain == null ? 0 : chain.getBestChainHeight();
         boolean shouldVerifyTransactions = chain == null ? false : chain.shouldVerifyTransactions();        
-        VersionMessage ver = new VersionMessage(params, height, false, shouldVerifyTransactions);
+        VersionMessage ver = new VersionMessage(params, height, false, shouldVerifyTransactions, serverPort, acceptUdp);
         updateVersionMessageRelayTxesBeforeFilter(ver);
         ver.appendToSubVer(name, version, comments);
         ver.myAddr.setPort(serverPort);
@@ -775,7 +787,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         channels.startAsync();
         channels.awaitRunning();
         if (startServer) {
-            channels.acceptConnections(serverPort, new StreamParserFactory(){
+            channels.acceptConnections(new StreamParserFactory(){
                 @Override
                 public StreamParser getNewParser(InetAddress inetAddress, int port) {
                     VersionMessage ver = getVersionMessage().duplicate();
@@ -1503,13 +1515,32 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
             }
         }        
     }
+
+    /**
+     * Broadcast a udp message to all peers but peerToSkip 
+     */
+    public void broadcastUDPMessage(Message message, Peer peerToSkip) {
+        for (Peer peer : peers) {
+            try {
+                if (peerToSkip==null || !peer.equals(peerToSkip)) {
+                    if (peer.getPeerVersionMessage().acceptUdp()) {
+                        peer.sendUDPMessage(message);                        
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Caught exception sending {} to {}", message, peer, e);
+            }
+        }        
+    }
     
     /**
      * Broadcast a block I just mined using pushheader and pushtxlist
      */
     public void broadcastMinedBlock(Block block) {
         PushHeader pushHeader = new PushHeader(params, block.cloneAsHeader());
-        broadcastMessage(pushHeader, null);
+        broadcastUDPMessage(pushHeader, null);
+        
+        //broadcastMessage(pushHeader, null);
 
         PushTransactionList pushTransactionList = new PushTransactionList(params, block);
         broadcastMessage(pushTransactionList, null);

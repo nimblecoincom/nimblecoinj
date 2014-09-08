@@ -180,7 +180,7 @@ public class NioClientManager extends AbstractExecutionThreadService implements 
     }
 
 	@Override
-	public void acceptConnections(int serverPort, StreamParserFactory parserFactory) {
+	public void acceptConnections(StreamParserFactory parserFactory) {
 		throw new UnsupportedOperationException("Not implemented yet");
 		
 	}

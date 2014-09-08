@@ -20,6 +20,7 @@ package com.google.bitcoin.net;
 import com.google.bitcoin.core.Utils;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.protobuf.ByteString;
+
 import org.bitcoin.paymentchannel.Protos;
 import org.junit.After;
 import org.junit.Before;
@@ -28,6 +29,8 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import javax.net.SocketFactory;
+
+import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -56,7 +59,7 @@ public class NetworkAbstractionTests {
             channels = new NioClientManager();
             channels.startAsync();
         } else if (clientType == 1) {
-            channels = new BlockingClientManager();
+            channels = new BlockingClientManager(35000, false);
             channels.startAsync();
         } else
             channels = null;
@@ -71,7 +74,7 @@ public class NetworkAbstractionTests {
         } else if (clientType == 2)
             return new NioClient(addr, parser, 100);
         else if (clientType == 3)
-            return new BlockingClient(addr, parser, 100, SocketFactory.getDefault(), null);
+            return new BlockingClient(addr, new DatagramSocket(), parser, 100, SocketFactory.getDefault(), null);
         else
             throw new RuntimeException();
     }
@@ -349,13 +352,13 @@ public class NetworkAbstractionTests {
         byte[] messageBytes = msg.toByteArray();
         byte[] messageLength = new byte[4];
         Utils.uint32ToByteArrayBE(messageBytes.length, messageLength, 0);
-        client.writeBytes(new byte[]{messageLength[0], messageLength[1]});
+        client.writeBytesTCP(new byte[]{messageLength[0], messageLength[1]});
         Thread.sleep(10);
-        client.writeBytes(new byte[]{messageLength[2], messageLength[3]});
+        client.writeBytesTCP(new byte[]{messageLength[2], messageLength[3]});
         Thread.sleep(10);
-        client.writeBytes(new byte[]{messageBytes[0], messageBytes[1]});
+        client.writeBytesTCP(new byte[]{messageBytes[0], messageBytes[1]});
         Thread.sleep(10);
-        client.writeBytes(Arrays.copyOfRange(messageBytes, 2, messageBytes.length - 1));
+        client.writeBytesTCP(Arrays.copyOfRange(messageBytes, 2, messageBytes.length - 1));
         Thread.sleep(10);
 
         // Now send the end of msg + msg2 + msg3 all at once
@@ -367,22 +370,22 @@ public class NetworkAbstractionTests {
         System.arraycopy(messageBytes2, 0, sendBytes, 5, messageBytes2.length);
         System.arraycopy(messageLength2, 0, sendBytes, 5 + messageBytes2.length, 4);
         System.arraycopy(messageBytes2, 0, sendBytes, 9 + messageBytes2.length, messageBytes2.length);
-        client.writeBytes(sendBytes);
+        client.writeBytesTCP(sendBytes);
         assertEquals(msg, clientMessage1Received.get());
         assertEquals(msg2, clientMessage2Received.get());
         assertEquals(msg2, clientMessage3Received.get());
 
         // Now resent msg2 in chunks, by itself
         Utils.uint32ToByteArrayBE(messageBytes2.length, messageLength2, 0);
-        client.writeBytes(new byte[]{messageLength2[0], messageLength2[1]});
+        client.writeBytesTCP(new byte[]{messageLength2[0], messageLength2[1]});
         Thread.sleep(10);
-        client.writeBytes(new byte[]{messageLength2[2], messageLength2[3]});
+        client.writeBytesTCP(new byte[]{messageLength2[2], messageLength2[3]});
         Thread.sleep(10);
-        client.writeBytes(new byte[]{messageBytes2[0], messageBytes2[1]});
+        client.writeBytesTCP(new byte[]{messageBytes2[0], messageBytes2[1]});
         Thread.sleep(10);
-        client.writeBytes(new byte[]{messageBytes2[2], messageBytes2[3]});
+        client.writeBytesTCP(new byte[]{messageBytes2[2], messageBytes2[3]});
         Thread.sleep(10);
-        client.writeBytes(Arrays.copyOfRange(messageBytes2, 4, messageBytes2.length));
+        client.writeBytesTCP(Arrays.copyOfRange(messageBytes2, 4, messageBytes2.length));
         assertEquals(msg2, clientMessage4Received.get());
 
         Protos.TwoWayChannelMessage msg5 = Protos.TwoWayChannelMessage.newBuilder()
@@ -398,7 +401,7 @@ public class NetworkAbstractionTests {
         // Override max size and make sure the server drops our connection
         byte[] messageLength5 = new byte[4];
         Utils.uint32ToByteArrayBE(msg5.toByteArray().length, messageLength5, 0);
-        client.writeBytes(messageLength5);
+        client.writeBytesTCP(messageLength5);
 
         serverConnectionClosed.get();
         clientConnectionClosed.get();

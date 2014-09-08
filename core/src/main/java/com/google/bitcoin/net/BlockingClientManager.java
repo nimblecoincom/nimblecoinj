@@ -19,6 +19,7 @@ package com.google.bitcoin.net;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.io.IOException;
+import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketAddress;
@@ -31,6 +32,7 @@ import javax.net.SocketFactory;
 
 import org.slf4j.LoggerFactory;
 
+import com.google.bitcoin.core.NetworkParameters;
 import com.google.common.util.concurrent.AbstractIdleService;
 
 /**
@@ -47,14 +49,25 @@ public class BlockingClientManager extends AbstractIdleService implements Client
     private final SocketFactory socketFactory;
     private final Set<BlockingClient> clients = Collections.synchronizedSet(new HashSet<BlockingClient>());
     private int connectTimeoutMillis = 1000;
+    private int serverPort;
     private ServerSocket serverSocket;
+    private DatagramSocket datagramSocket;
+    private boolean acceptUdp = false;
+    private UDPSocketThread udpSocketThread;
+
     private volatile boolean vServerCloseRequested = false;
 
     
-    public BlockingClientManager() {
-        socketFactory = SocketFactory.getDefault();
+    public BlockingClientManager(NetworkParameters params) {
+        this(params.getPort(), false);
     }
 
+    public BlockingClientManager(int serverPort, boolean acceptUdp) {
+        this.serverPort = serverPort;
+        socketFactory = SocketFactory.getDefault();
+        this.acceptUdp = acceptUdp;
+    }
+    
     /**
      * Creates a blocking client manager that will obtain sockets from the given factory. Useful for customising how
      * bitcoinj connects to the P2P network.
@@ -68,7 +81,7 @@ public class BlockingClientManager extends AbstractIdleService implements Client
         if (!isRunning())
             throw new IllegalStateException();
         try {
-            new BlockingClient(serverAddress, parser, connectTimeoutMillis, socketFactory, clients);
+            new BlockingClient(serverAddress, datagramSocket, parser, connectTimeoutMillis, socketFactory, clients);
         } catch (IOException e) {
             throw new RuntimeException(e); // This should only happen if we are, eg, out of system resources
         }
@@ -80,17 +93,27 @@ public class BlockingClientManager extends AbstractIdleService implements Client
     }
 
     @Override
-    protected void startUp() throws Exception { }
+    protected void startUp() throws Exception {
+        if (acceptUdp) {
+            datagramSocket = new DatagramSocket(serverPort);
+            udpSocketThread = new UDPSocketThread(datagramSocket, clients);
+            udpSocketThread.start();            
+        }
+    }
 
     @Override
     protected void shutDown() throws Exception {
+        if (acceptUdp) {
+            udpSocketThread.doStop();            
+        }
         synchronized (clients) {
             for (BlockingClient client : clients)
                 client.closeConnection();
         }
+        datagramSocket.close();
         if (serverSocket!=null) {
             vServerCloseRequested = true;
-            serverSocket.close();            
+            serverSocket.close();
         }
     }
 
@@ -111,7 +134,7 @@ public class BlockingClientManager extends AbstractIdleService implements Client
     }
 
     @Override
-    public void acceptConnections(final int serverPort, final StreamParserFactory parserFactory) {        
+    public void acceptConnections(final StreamParserFactory parserFactory) {        
         if (!isRunning())
             throw new IllegalStateException();
         try {
@@ -124,7 +147,7 @@ public class BlockingClientManager extends AbstractIdleService implements Client
                         while (true) {                            
                             Socket socket = serverSocket.accept();
                             log.info("Accepted connection " + socket);
-                            new BlockingClient(socket, parserFactory, clients);                            
+                            new BlockingClient(socket, datagramSocket, parserFactory, clients);                            
                         }
                     } catch (Exception e) {
                         if (!vServerCloseRequested)

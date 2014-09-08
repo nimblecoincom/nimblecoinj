@@ -46,7 +46,7 @@ Usage: wallet-tool --flags action-name
 
 >>> GENERAL OPTIONS
   --debuglog           Enables logging from the core library.
-  --net=XXX            Which network to connect to, defaults to PROD, can also be TEST or REGTEST.
+  --net=XXX            Which network to connect to, defaults to PROD, can also be TEST, REGTEST or NETBOX.
   --mode=FULL/SPV      Whether to do full verification of the chain or just light mode.
   --wallet=<file>      Specifies what wallet file to load and save.
   --chain=<file>       Specifies the name of the file that stores the block chain.
@@ -71,6 +71,7 @@ Usage: wallet-tool --flags action-name
   --netbox             This is a net in a box test 
   --netbox-nodes=N     Number of nodes being part of the net in a box test 
   --netbox-peers=N     Number of peers every node (part of the net in a box test) should have
+  --accept-udp         Whether this node should accept udp messages. Will accept messages on default port or port specified by --server-port
 
 >>> WAITING
 You can wait for the condition specified by the --waitfor flag to become true. Transactions and new

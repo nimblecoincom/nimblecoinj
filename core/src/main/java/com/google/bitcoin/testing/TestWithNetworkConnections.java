@@ -28,8 +28,10 @@ import com.google.common.util.concurrent.SettableFuture;
 
 import javax.annotation.Nullable;
 import javax.net.SocketFactory;
+
 import java.io.IOException;
 import java.math.BigInteger;
+import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -69,7 +71,7 @@ public class TestWithNetworkConnections {
         if (clientType == ClientType.NIO_CLIENT_MANAGER)
             channels = new NioClientManager();
         else if (clientType == ClientType.BLOCKING_CLIENT_MANAGER)
-            channels = new BlockingClientManager();
+            channels = new BlockingClientManager(35000, false);
         else
             channels = null;
     }
@@ -159,7 +161,7 @@ public class TestWithNetworkConnections {
         else if (clientType == ClientType.NIO_CLIENT)
             new NioClient(new InetSocketAddress("127.0.0.1", 2000), peer, 100);
         else if (clientType == ClientType.BLOCKING_CLIENT)
-            new BlockingClient(new InetSocketAddress("127.0.0.1", 2000), peer, 100, SocketFactory.getDefault(), null);
+            new BlockingClient(new InetSocketAddress("127.0.0.1", 2000), new DatagramSocket(), peer, 100, SocketFactory.getDefault(), null);
         else
             throw new RuntimeException();
         // Claim we are connected to a different IP that what we really are, so tx confidence broadcastBy sets work

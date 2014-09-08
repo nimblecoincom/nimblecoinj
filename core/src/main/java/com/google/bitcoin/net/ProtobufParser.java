@@ -21,10 +21,12 @@ import com.google.bitcoin.utils.Threading;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.MessageLite;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.concurrent.GuardedBy;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -194,6 +196,11 @@ public class ProtobufParser<MessageType extends MessageLite> extends AbstractTim
             lock.unlock();
         }
     }
+    
+    @Override
+    public void receiveBytesUDP(byte[] bytes, int offset, int length) {
+        throw new UnsupportedOperationException(); 
+    }
 
     @Override
     public void connectionClosed() {
@@ -220,8 +227,8 @@ public class ProtobufParser<MessageType extends MessageLite> extends AbstractTim
         Utils.uint32ToByteArrayBE(messageBytes.length, messageLength, 0);
         try {
             MessageWriteTarget target = writeTarget.get();
-            target.writeBytes(messageLength);
-            target.writeBytes(messageBytes);
+            target.writeBytesTCP(messageLength);
+            target.writeBytesTCP(messageBytes);
         } catch (IOException e) {
             closeConnection();
         }

@@ -1032,7 +1032,7 @@ public class PeerTest extends TestWithNetworkConnections {
         Uninterruptibles.getUninterruptibly(connectedFuture);
         Uninterruptibles.getUninterruptibly(disconnectedFuture);
         try {
-            peer.writeTarget.writeBytes(new byte[1]);
+            peer.writeTarget.writeBytesTCP(new byte[1]);
             fail();
         } catch (IOException e) {
             assertTrue((e.getCause() != null && e.getCause() instanceof CancelledKeyException)
@@ -1119,7 +1119,7 @@ public class PeerTest extends TestWithNetworkConnections {
                 stream.write(bits);
             }
         }.bitcoinSerialize(), out);
-        writeTarget.writeTarget.writeBytes(out.toByteArray());
+        writeTarget.writeTarget.writeBytesTCP(out.toByteArray());
         try {
             result.get();
             fail();
@@ -1128,7 +1128,7 @@ public class PeerTest extends TestWithNetworkConnections {
         }
         peerDisconnected.get();
         try {
-            peer.writeTarget.writeBytes(new byte[1]);
+            peer.writeTarget.writeBytesTCP(new byte[1]);
             fail();
         } catch (IOException e) {
             assertTrue((e.getCause() != null && e.getCause() instanceof CancelledKeyException)
