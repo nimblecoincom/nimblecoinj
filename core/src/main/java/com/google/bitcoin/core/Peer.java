@@ -19,6 +19,7 @@ package com.google.bitcoin.core;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -453,7 +454,7 @@ public class Peer extends PeerSocketHandler {
         }
     }
 
-    private void processVersionMessage(VersionMessage m) throws ProtocolException {
+    private void processVersionMessage(VersionMessage m) throws ProtocolException, IOException {
         if (vPeerVersionMessage != null)
             throw new ProtocolException("Got two version messages from peer");
         vPeerVersionMessage = m;
@@ -480,6 +481,9 @@ public class Peer extends PeerSocketHandler {
             // Shut down the channel
             log.info("Peer does not have a copy of the block chain.");
             //throw new ProtocolException("Peer does not have a copy of the block chain.");
+        }
+        if (vPeerVersionMessage.acceptUdp()) {
+            writeTarget.setUDPPort(vPeerVersionMessage.myAddr.getPort());
         }
     }
 

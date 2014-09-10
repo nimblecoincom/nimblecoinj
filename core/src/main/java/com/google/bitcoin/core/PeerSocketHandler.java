@@ -221,8 +221,10 @@ public abstract class PeerSocketHandler extends AbstractTimeoutHandler implement
         try {
             long nodeId = Utils.readInt64(bytes, offset);
             offset = offset + 6;
+            length = length - 6;
             ByteBuffer buff = ByteBuffer.allocateDirect(65536);
             buff.put(bytes, offset, length);
+            buff.flip();            
             Message message = serializer.deserialize(buff);
             processUDPMessage(nodeId, message);
         } catch (Exception e) {
