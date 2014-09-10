@@ -1864,7 +1864,7 @@ public class Wallet implements Serializable, BlockChainListener, PeerFilterProvi
 
     /**
      * Sends coins to the given address, via the given {@link Peer}. Change is returned to {@link Wallet#getChangeAddress()}.
-     * If an exception is thrown by {@link Peer#sendMessage(Message)} the transaction is still committed, so the
+     * If an exception is thrown by {@link Peer#sendLowPriorityMessage(Message)} the transaction is still committed, so the
      * pending transaction must be broadcast <b>by you</b> at some other time. Note that a fee may be automatically added
      * if one may be required for the transaction to be confirmed.
      *
@@ -1873,7 +1873,7 @@ public class Wallet implements Serializable, BlockChainListener, PeerFilterProvi
      */
     public Transaction sendCoins(Peer peer, SendRequest request) throws InsufficientMoneyException {
         Transaction tx = sendCoinsOffline(request);
-        peer.sendMessage(tx);
+        peer.sendLowPriorityMessage(tx);
         return tx;
     }
 

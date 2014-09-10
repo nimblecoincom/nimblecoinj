@@ -135,7 +135,7 @@ class ConnectionHandler implements MessageWriteTarget {
     }
 
     @Override
-    public void writeBytesTCP(byte[] message) throws IOException {
+    public void writeLowPriorityBytes(byte[] message) throws IOException {
         lock.lock();
         try {
             // Network buffers are not unlimited (and are often smaller than some messages we may wish to send), and
@@ -170,7 +170,7 @@ class ConnectionHandler implements MessageWriteTarget {
     }
     
     @Override
-    public void writeBytesUDP(byte[] message) throws IOException {
+    public void writeHighPriorityBytes(byte[] message) throws IOException {
         throw new UnsupportedOperationException();        
     }
 
@@ -225,7 +225,7 @@ class ConnectionHandler implements MessageWriteTarget {
                 // "flip" the buffer - setting the limit to the current position and setting position to 0
                 handler.readBuff.flip();
                 // Use parser.receiveBytes's return value as a check that it stopped reading at the right location
-                int bytesConsumed = checkNotNull(handler.parser).receiveBytes(handler.readBuff);
+                int bytesConsumed = checkNotNull(handler.parser).receiveLowPriorityBytes(handler.readBuff);
                 checkState(handler.readBuff.position() == bytesConsumed);
                 // Now drop the bytes which were read by compacting readBuff (resetting limit and keeping relative
                 // position)

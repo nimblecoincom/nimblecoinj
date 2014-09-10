@@ -139,7 +139,7 @@ public class BlockingClient implements MessageWriteTarget {
                     dbuf.flip();
                     // Use parser.receiveBytes's return value as a double-check that it stopped reading at the right
                     // location
-                    int bytesConsumed = parser.receiveBytes(dbuf);
+                    int bytesConsumed = parser.receiveLowPriorityBytes(dbuf);
                     checkState(dbuf.position() == bytesConsumed);
                     // Now drop the bytes which were read by compacting dbuf (resetting limit and keeping relative
                     // position)
@@ -177,7 +177,7 @@ public class BlockingClient implements MessageWriteTarget {
     }
 
     @Override
-    public synchronized void writeBytesTCP(byte[] message) throws IOException {
+    public synchronized void writeLowPriorityBytes(byte[] message) throws IOException {
         try {
             OutputStream stream = socket.getOutputStream();
             stream.write(message);
@@ -195,7 +195,7 @@ public class BlockingClient implements MessageWriteTarget {
     }
     
     @Override
-    public synchronized void writeBytesUDP(byte[] message) throws IOException {
+    public synchronized void writeHighPriorityBytes(byte[] message) throws IOException {
         try {            
             DatagramPacket packet = new DatagramPacket(message, message.length, udpAddress, udpPort);
             datagramSocket.send(packet);
@@ -207,7 +207,7 @@ public class BlockingClient implements MessageWriteTarget {
     }
 
     public void receiveBytesUDP(byte[] bytes, int offset, int length) {
-        parser.receiveBytesUDP(bytes, offset, length);
+        parser.receiveHighPriorityBytes(bytes, offset, length);
     }
     
 }

@@ -267,7 +267,7 @@ public class NetworkAbstractionTests {
 
     @Test
     public void largeDataTest() throws Exception {
-        /** Test various large-data handling, essentially testing {@link ProtobufParser#receiveBytes(java.nio.ByteBuffer)} */
+        /** Test various large-data handling, essentially testing {@link ProtobufParser#receiveLowPriorityBytes(java.nio.ByteBuffer)} */
         final SettableFuture<Void> serverConnectionOpen = SettableFuture.create();
         final SettableFuture<Void> clientConnectionOpen = SettableFuture.create();
         final SettableFuture<Void> serverConnectionClosed = SettableFuture.create();
@@ -352,13 +352,13 @@ public class NetworkAbstractionTests {
         byte[] messageBytes = msg.toByteArray();
         byte[] messageLength = new byte[4];
         Utils.uint32ToByteArrayBE(messageBytes.length, messageLength, 0);
-        client.writeBytesTCP(new byte[]{messageLength[0], messageLength[1]});
+        client.writeLowPriorityBytes(new byte[]{messageLength[0], messageLength[1]});
         Thread.sleep(10);
-        client.writeBytesTCP(new byte[]{messageLength[2], messageLength[3]});
+        client.writeLowPriorityBytes(new byte[]{messageLength[2], messageLength[3]});
         Thread.sleep(10);
-        client.writeBytesTCP(new byte[]{messageBytes[0], messageBytes[1]});
+        client.writeLowPriorityBytes(new byte[]{messageBytes[0], messageBytes[1]});
         Thread.sleep(10);
-        client.writeBytesTCP(Arrays.copyOfRange(messageBytes, 2, messageBytes.length - 1));
+        client.writeLowPriorityBytes(Arrays.copyOfRange(messageBytes, 2, messageBytes.length - 1));
         Thread.sleep(10);
 
         // Now send the end of msg + msg2 + msg3 all at once
@@ -370,22 +370,22 @@ public class NetworkAbstractionTests {
         System.arraycopy(messageBytes2, 0, sendBytes, 5, messageBytes2.length);
         System.arraycopy(messageLength2, 0, sendBytes, 5 + messageBytes2.length, 4);
         System.arraycopy(messageBytes2, 0, sendBytes, 9 + messageBytes2.length, messageBytes2.length);
-        client.writeBytesTCP(sendBytes);
+        client.writeLowPriorityBytes(sendBytes);
         assertEquals(msg, clientMessage1Received.get());
         assertEquals(msg2, clientMessage2Received.get());
         assertEquals(msg2, clientMessage3Received.get());
 
         // Now resent msg2 in chunks, by itself
         Utils.uint32ToByteArrayBE(messageBytes2.length, messageLength2, 0);
-        client.writeBytesTCP(new byte[]{messageLength2[0], messageLength2[1]});
+        client.writeLowPriorityBytes(new byte[]{messageLength2[0], messageLength2[1]});
         Thread.sleep(10);
-        client.writeBytesTCP(new byte[]{messageLength2[2], messageLength2[3]});
+        client.writeLowPriorityBytes(new byte[]{messageLength2[2], messageLength2[3]});
         Thread.sleep(10);
-        client.writeBytesTCP(new byte[]{messageBytes2[0], messageBytes2[1]});
+        client.writeLowPriorityBytes(new byte[]{messageBytes2[0], messageBytes2[1]});
         Thread.sleep(10);
-        client.writeBytesTCP(new byte[]{messageBytes2[2], messageBytes2[3]});
+        client.writeLowPriorityBytes(new byte[]{messageBytes2[2], messageBytes2[3]});
         Thread.sleep(10);
-        client.writeBytesTCP(Arrays.copyOfRange(messageBytes2, 4, messageBytes2.length));
+        client.writeLowPriorityBytes(Arrays.copyOfRange(messageBytes2, 4, messageBytes2.length));
         assertEquals(msg2, clientMessage4Received.get());
 
         Protos.TwoWayChannelMessage msg5 = Protos.TwoWayChannelMessage.newBuilder()
@@ -401,7 +401,7 @@ public class NetworkAbstractionTests {
         // Override max size and make sure the server drops our connection
         byte[] messageLength5 = new byte[4];
         Utils.uint32ToByteArrayBE(msg5.toByteArray().length, messageLength5, 0);
-        client.writeBytesTCP(messageLength5);
+        client.writeLowPriorityBytes(messageLength5);
 
         serverConnectionClosed.get();
         clientConnectionClosed.get();

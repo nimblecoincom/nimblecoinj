@@ -105,7 +105,7 @@ public class TransactionBroadcast {
                     numConnected, tx.getHashAsString(), numToBroadcastTo, numWaitingFor, Joiner.on(",").join(peers));
             for (Peer peer : peers) {
                 try {
-                    peer.sendMessage(pinnedTx);
+                    peer.sendLowPriorityMessage(pinnedTx);
                     // We don't record the peer as having seen the tx in the memory pool because we want to track only
                     // how many peers announced to us.
                 } catch (Exception e) {

@@ -37,8 +37,8 @@ public class DoubleSpend {
                 return m;
             }
         }, Threading.SAME_THREAD);
-        peer.sendMessage(tx1);
-        peer.sendMessage(tx2);
+        peer.sendLowPriorityMessage(tx1);
+        peer.sendLowPriorityMessage(tx2);
 
         Thread.sleep(5000);
         kit.stopAsync();

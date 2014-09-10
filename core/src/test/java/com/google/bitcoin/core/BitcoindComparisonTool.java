@@ -192,17 +192,17 @@ public class BitcoindComparisonTool {
 
                 InventoryMessage message = new InventoryMessage(params);
                 message.addBlock(nextBlock);
-                bitcoind.sendMessage(message);
+                bitcoind.sendLowPriorityMessage(message);
                 // bitcoind doesn't request blocks inline so we can't rely on a ping for synchronization
                 for (int i = 0; !blocksRequested.contains(nextBlock.getHash()); i++) {
                     if (i % 20 == 19)
                         log.error("bitcoind still hasn't requested block " + block.ruleName + " with hash " + nextBlock.getHash());
                     Thread.sleep(50);
                 }
-                bitcoind.sendMessage(nextBlock);
+                bitcoind.sendLowPriorityMessage(nextBlock);
                 locator.clear();
                 locator.add(bitcoindChainHead);
-                bitcoind.sendMessage(new GetHeadersMessage(params, locator, hashTo));
+                bitcoind.sendLowPriorityMessage(new GetHeadersMessage(params, locator, hashTo));
                 bitcoind.ping().get();
                 if (!chain.getChainHead().getHeader().getHash().equals(bitcoindChainHead)) {
                     differingBlocks++;
@@ -211,7 +211,7 @@ public class BitcoindComparisonTool {
                 log.info("Block \"" + block.ruleName + "\" completed processing");
             } else if (rule instanceof MemoryPoolState) {
                 MemoryPoolMessage message = new MemoryPoolMessage();
-                bitcoind.sendMessage(message);
+                bitcoind.sendLowPriorityMessage(message);
                 bitcoind.ping().get();
                 if (mostRecentInv == null && !((MemoryPoolState) rule).mempool.isEmpty()) {
                     log.error("bitcoind had an empty mempool, but we expected some transactions on rule " + rule.ruleName);

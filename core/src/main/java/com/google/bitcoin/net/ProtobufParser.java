@@ -131,7 +131,7 @@ public class ProtobufParser<MessageType extends MessageLite> extends AbstractTim
     }
 
     @Override
-    public int receiveBytes(ByteBuffer buff) throws Exception {
+    public int receiveLowPriorityBytes(ByteBuffer buff) throws Exception {
         lock.lock();
         try {
             if (messageBytes != null) {
@@ -144,7 +144,7 @@ public class ProtobufParser<MessageType extends MessageLite> extends AbstractTim
                     deserializeMessage(ByteBuffer.wrap(messageBytes));
                     messageBytes = null;
                     if (buff.hasRemaining())
-                        return bytesToGet + receiveBytes(buff);
+                        return bytesToGet + receiveLowPriorityBytes(buff);
                 }
                 return bytesToGet;
             }
@@ -189,7 +189,7 @@ public class ProtobufParser<MessageType extends MessageLite> extends AbstractTim
 
             // If there are still bytes remaining, see if we can pull out another message since we won't get called again
             if (buff.hasRemaining())
-                return len + 4 + receiveBytes(buff);
+                return len + 4 + receiveLowPriorityBytes(buff);
             else
                 return len + 4;
         } finally {
@@ -198,7 +198,7 @@ public class ProtobufParser<MessageType extends MessageLite> extends AbstractTim
     }
     
     @Override
-    public void receiveBytesUDP(byte[] bytes, int offset, int length) {
+    public void receiveHighPriorityBytes(byte[] bytes, int offset, int length) {
         throw new UnsupportedOperationException(); 
     }
 
@@ -227,8 +227,8 @@ public class ProtobufParser<MessageType extends MessageLite> extends AbstractTim
         Utils.uint32ToByteArrayBE(messageBytes.length, messageLength, 0);
         try {
             MessageWriteTarget target = writeTarget.get();
-            target.writeBytesTCP(messageLength);
-            target.writeBytesTCP(messageBytes);
+            target.writeLowPriorityBytes(messageLength);
+            target.writeLowPriorityBytes(messageBytes);
         } catch (IOException e) {
             closeConnection();
         }

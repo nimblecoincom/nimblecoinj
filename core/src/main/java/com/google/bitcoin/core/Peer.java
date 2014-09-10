@@ -339,7 +339,7 @@ public class Peer extends PeerSocketHandler {
         // from us until they send their version message back.
         PeerAddress address = getAddress();
         log.info("Announcing to {} as: {}", address == null ? "Peer" : address.toSocketAddress(), versionMessage.subVer);
-        sendMessage(versionMessage);
+        sendLowPriorityMessage(versionMessage);
         connectionOpenFuture.set(this);
         // When connecting, the remote peer sends us a version message with various bits of
         // useful data in it. We need to know the peer protocol version before we can talk to it.
@@ -356,7 +356,7 @@ public class Peer extends PeerSocketHandler {
     private enum TransportProtocol {TCP, UDP};
 
     @Override
-    protected void processUDPMessage(long nodeId, Message m) {
+    protected void processHighPriorityMessage(long nodeId, Message m) {
         if(vPeerVersionMessage.getNonce() == nodeId) {
             maybeDelay(m);
             if (m instanceof PushHeader) {
@@ -365,7 +365,7 @@ public class Peer extends PeerSocketHandler {
         }        
     }
     
-    protected void processMessage(Message m) throws Exception {
+    protected void processLowPriorityMessage(Message m) throws Exception {
         maybeDelay(m);
         if (!(m instanceof Ping) && ! (m instanceof Pong)) {        
             log.info("{}: Received message {} {}", getAddress(), m.getClass().getSimpleName(), m.toString());
@@ -444,7 +444,7 @@ public class Peer extends PeerSocketHandler {
             }
         } else if (m instanceof Ping) {
             if (((Ping) m).hasNonce())
-                sendMessage(new Pong(((Ping) m).getNonce()));
+                sendLowPriorityMessage(new Pong(((Ping) m).getNonce()));
         } else if (m instanceof Pong) {
             processPong((Pong)m);
         } else if (m instanceof GetBlocksMessage) {
@@ -471,7 +471,7 @@ public class Peer extends PeerSocketHandler {
                 vPeerVersionMessage.bestHeight);
         // Now it's our turn ...
         // Send an ACK message stating we accept the peers protocol version.
-        sendMessage(new VersionAck());
+        sendLowPriorityMessage(new VersionAck());
         // bitcoinj is a client mode implementation. That means there's not much point in us talking to other client
         // mode nodes because we can't download the data from them we need to find/verify transactions. Some bogus
         // implementations claim to have a block chain in their services field but then report a height of zero, filter
@@ -498,7 +498,7 @@ public class Peer extends PeerSocketHandler {
         // triggering yet more false positives. We refresh it every so often to get the FP rate back down.
         filteredBlocksReceived++;
         if (filteredBlocksReceived % RESEND_BLOOM_FILTER_BLOCK_COUNT == RESEND_BLOOM_FILTER_BLOCK_COUNT - 1) {
-            sendMessage(vBloomFilter);
+            sendLowPriorityMessage(vBloomFilter);
         }
     }
 
@@ -554,9 +554,9 @@ public class Peer extends PeerSocketHandler {
             if (blockChain.addHeaderWaitingForItsTransactions(header)) {
                 // The block was successfully added to headersWaitingForItsTransactions
                 if (transportProtocol.equals(TransportProtocol.TCP)) {
-                    peerGroup.broadcastMessage(m, this);                    
+                    peerGroup.broadcastLowPriorityMessage(m, this);                    
                 } else {
-                    peerGroup.broadcastUDPMessage(m, this);
+                    peerGroup.broadcastHighPriorityMessage(m, this);
                 }
             }
                 
@@ -621,7 +621,7 @@ public class Peer extends PeerSocketHandler {
 
         if (!getdata.getItems().isEmpty()) {
             // This will cause us to receive a bunch of block or tx messages.
-            sendMessage(getdata);
+            sendLowPriorityMessage(getdata);
         }
         
         Futures.addCallback(successful, new FutureCallback<List<Transaction>>() {
@@ -633,7 +633,7 @@ public class Peer extends PeerSocketHandler {
                 }                    
                 try {
                     if (blockChain.add(block)) {
-                        peerGroup.broadcastMessage(m, Peer.this);
+                        peerGroup.broadcastLowPriorityMessage(m, Peer.this);
                     } else {
                         lock.lock();
                         try {
@@ -781,12 +781,12 @@ public class Peer extends PeerSocketHandler {
         }
         log.info("{}: Sending {} items gathered from listeners to peer", getAddress(), items.size());
         for (Message item : items) {
-            sendMessage(item);
+            sendLowPriorityMessage(item);
         }
         if (resendChainHead) {
             InventoryMessage inv = new InventoryMessage(params);
             inv.addBlock(blockChain.getChainHead().getHeader());
-            sendMessage(inv);
+            sendLowPriorityMessage(inv);
         }
     }
 
@@ -837,7 +837,7 @@ public class Peer extends PeerSocketHandler {
                 lastInvNumber500SentAsPartOfBlockChainUpload = currentBlock.getHeader();
             }            
         }
-        sendMessage(invResponse);        
+        sendLowPriorityMessage(invResponse);        
     }
 
     private void processTransaction(Transaction tx) throws VerificationException {
@@ -1049,7 +1049,7 @@ public class Peer extends PeerSocketHandler {
                 }
             });
             // Start the operation.
-            sendMessage(getdata);
+            sendLowPriorityMessage(getdata);
             if (!isNotFoundMessageSupported()) {
                 // If the peer isn't new enough to support the notfound message, we use a nasty hack instead and
                 // assume if we send a ping message after the getdata message, it'll be processed after all answers
@@ -1346,11 +1346,11 @@ public class Peer extends PeerSocketHandler {
 
         if (!getdata.getItems().isEmpty()) {
             // This will cause us to receive a bunch of block or tx messages.
-            sendMessage(getdata);
+            sendLowPriorityMessage(getdata);
         }
 
         if (pingAfterGetData)
-            sendMessage(new Ping((long) (Math.random() * Long.MAX_VALUE)));
+            sendLowPriorityMessage(new Ping((long) (Math.random() * Long.MAX_VALUE)));
     }
 
     /**
@@ -1388,7 +1388,7 @@ public class Peer extends PeerSocketHandler {
         req.future = SettableFuture.create();
         req.hash = getdata.getItems().get(0).hash;
         getDataFutures.add(req);
-        sendMessage(getdata);
+        sendLowPriorityMessage(getdata);
         return req.future;
     }
 
@@ -1518,11 +1518,11 @@ public class Peer extends PeerSocketHandler {
 
         if (downloadBlockBodies) {
             GetBlocksMessage message = new GetBlocksMessage(params, blockLocator, toHash);
-            sendMessage(message);
+            sendLowPriorityMessage(message);
         } else {
             // Downloading headers for a while instead of full blocks.
             GetHeadersMessage message = new GetHeadersMessage(params, blockLocator, toHash);
-            sendMessage(message);
+            sendLowPriorityMessage(message);
         }
     }
 
@@ -1614,7 +1614,7 @@ public class Peer extends PeerSocketHandler {
             throw new ProtocolException("Peer version is too low for measurable pings: " + ver);
         PendingPing pendingPing = new PendingPing(nonce);
         pendingPings.add(pendingPing);
-        sendMessage(new Ping(pendingPing.nonce));
+        sendLowPriorityMessage(new Ping(pendingPing.nonce));
         return pendingPing.future;
     }
 
@@ -1754,8 +1754,8 @@ public class Peer extends PeerSocketHandler {
         vBloomFilter = filter;
         boolean shouldQueryMemPool = memoryPool != null || vDownloadData;
         log.info("{}: Sending Bloom filter{}", this, shouldQueryMemPool ? " and querying mempool" : "");
-        sendMessage(filter);
-        sendMessage(new MemoryPoolMessage());
+        sendLowPriorityMessage(filter);
+        sendLowPriorityMessage(new MemoryPoolMessage());
     }
 
     /**

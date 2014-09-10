@@ -32,7 +32,7 @@ public abstract class InboundMessageQueuer extends PeerSocketHandler {
     }
 
     @Override
-    protected void processMessage(Message m) throws Exception {
+    protected void processLowPriorityMessage(Message m) throws Exception {
         if (m instanceof Ping) {
             SettableFuture<Void> future = mapPingFutures.get(((Ping) m).getNonce());
             if (future != null) {
@@ -47,7 +47,7 @@ public abstract class InboundMessageQueuer extends PeerSocketHandler {
     }
     
     @Override
-    protected void processUDPMessage(long nodeId, Message message) {
+    protected void processHighPriorityMessage(long nodeId, Message message) {
         throw new UnsupportedOperationException();
     }
     

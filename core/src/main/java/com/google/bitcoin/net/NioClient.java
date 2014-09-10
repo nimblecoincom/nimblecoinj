@@ -59,13 +59,13 @@ public class NioClient implements MessageWriteTarget {
         }
 
         @Override
-        public int receiveBytes(ByteBuffer buff) throws Exception {
-            return upstreamParser.receiveBytes(buff);
+        public int receiveLowPriorityBytes(ByteBuffer buff) throws Exception {
+            return upstreamParser.receiveLowPriorityBytes(buff);
         }
         
         @Override
-        public void receiveBytesUDP(byte[] bytes, int offset, int length) {
-            upstreamParser.receiveBytesUDP(bytes, offset, length);            
+        public void receiveHighPriorityBytes(byte[] bytes, int offset, int length) {
+            upstreamParser.receiveHighPriorityBytes(bytes, offset, length);            
         }
 
         @Override
@@ -113,13 +113,13 @@ public class NioClient implements MessageWriteTarget {
     }
     
     @Override
-    public synchronized void writeBytesTCP(byte[] message) throws IOException {
-        handler.writeTarget.writeBytesTCP(message);
+    public synchronized void writeLowPriorityBytes(byte[] message) throws IOException {
+        handler.writeTarget.writeLowPriorityBytes(message);
     }
     
     @Override
-    public synchronized void writeBytesUDP(byte[] message) throws IOException {
-        handler.writeTarget.writeBytesUDP(message);
+    public synchronized void writeHighPriorityBytes(byte[] message) throws IOException {
+        handler.writeTarget.writeHighPriorityBytes(message);
     }
     
 }

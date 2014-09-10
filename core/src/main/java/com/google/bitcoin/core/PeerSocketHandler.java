@@ -76,7 +76,7 @@ public abstract class PeerSocketHandler extends AbstractTimeoutHandler implement
      * the peer will have received it. Throws NotYetConnectedException if we are not yet connected to the remote peer.
      * TODO: Maybe use something other than the unchecked NotYetConnectedException here
      */
-    public void sendMessage(Message message) throws NotYetConnectedException {
+    public void sendLowPriorityMessage(Message message) throws NotYetConnectedException {
         lock.lock();
         try {
             if (writeTarget == null)
@@ -88,7 +88,7 @@ public abstract class PeerSocketHandler extends AbstractTimeoutHandler implement
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
             serializer.serialize(message, out);
-            writeTarget.writeBytesTCP(out.toByteArray());
+            writeTarget.writeLowPriorityBytes(out.toByteArray());
             if (!(message instanceof Ping) && ! (message instanceof Pong)) log.info("{}: Sent {}", this, message.getClass());
         } catch (IOException e) {
             exceptionCaught(e);
@@ -96,7 +96,7 @@ public abstract class PeerSocketHandler extends AbstractTimeoutHandler implement
     }
 
 
-    public void sendUDPMessage(Message message) throws NotYetConnectedException {
+    public void sendHighPriorityMessage(Message message) throws NotYetConnectedException {
         lock.lock();
         try {
             if (writeTarget == null)
@@ -109,7 +109,7 @@ public abstract class PeerSocketHandler extends AbstractTimeoutHandler implement
         try {
             Utils.int64ToByteStreamLE(getSelfNodeId(), out);
             serializer.serialize(message, out);
-            writeTarget.writeBytesUDP(out.toByteArray());
+            writeTarget.writeHighPriorityBytes(out.toByteArray());
             log.info("{}: UDP Sent {}", this, message.getClass());
         } catch (IOException e) {
             exceptionCaught(e);
@@ -143,16 +143,16 @@ public abstract class PeerSocketHandler extends AbstractTimeoutHandler implement
     /**
      * Called every time a message is received from the network
      */
-    protected abstract void processMessage(Message m) throws Exception;
+    protected abstract void processLowPriorityMessage(Message m) throws Exception;
 
     /**
      * Called every time a message is received from UDP
      */
-    protected abstract void processUDPMessage(long nodeId, Message message);
+    protected abstract void processHighPriorityMessage(long nodeId, Message message);
     
     
     @Override
-    public int receiveBytes(ByteBuffer buff) {
+    public int receiveLowPriorityBytes(ByteBuffer buff) {
         checkArgument(buff.position() == 0 &&
                 buff.capacity() >= BitcoinSerializer.BitcoinPacketHeader.HEADER_LENGTH + 4);
         try {
@@ -169,7 +169,7 @@ public abstract class PeerSocketHandler extends AbstractTimeoutHandler implement
                     // Check the largeReadBuffer's status
                     if (largeReadBufferPos == largeReadBuffer.length) {
                         // ...processing a message if one is available
-                        processMessage(serializer.deserializePayload(header, ByteBuffer.wrap(largeReadBuffer)));
+                        processLowPriorityMessage(serializer.deserializePayload(header, ByteBuffer.wrap(largeReadBuffer)));
                         largeReadBuffer = null;
                         header = null;
                     } else // ...or just returning if we don't have enough bytes yet
@@ -208,7 +208,7 @@ public abstract class PeerSocketHandler extends AbstractTimeoutHandler implement
                     return buff.position();
                 }
                 // Process our freshly deserialized message
-                processMessage(message);
+                processLowPriorityMessage(message);
             }
         } catch (Exception e) {
             exceptionCaught(e);
@@ -217,7 +217,7 @@ public abstract class PeerSocketHandler extends AbstractTimeoutHandler implement
     }
     
     @Override
-    public void receiveBytesUDP(byte[] bytes, int offset, int length) {
+    public void receiveHighPriorityBytes(byte[] bytes, int offset, int length) {
         try {
             long nodeId = Utils.readInt64(bytes, offset);
             offset = offset + 6;
@@ -226,7 +226,7 @@ public abstract class PeerSocketHandler extends AbstractTimeoutHandler implement
             buff.put(bytes, offset, length);
             buff.flip();            
             Message message = serializer.deserialize(buff);
-            processUDPMessage(nodeId, message);
+            processHighPriorityMessage(nodeId, message);
         } catch (Exception e) {
             exceptionCaught(e);
         }

@@ -80,8 +80,8 @@ public class TestWithPeerGroup extends TestWithNetworkConnections {
         checkArgument(versionMessage.hasBlockChain());
         InboundMessageQueuer writeTarget = connectPeerWithoutVersionExchange(id);
         // Complete handshake with the peer - send/receive version(ack)s, receive bloom filter
-        writeTarget.sendMessage(versionMessage);
-        writeTarget.sendMessage(new VersionAck());
+        writeTarget.sendLowPriorityMessage(versionMessage);
+        writeTarget.sendLowPriorityMessage(new VersionAck());
         assertTrue(writeTarget.nextMessageBlocking() instanceof VersionMessage);
         assertTrue(writeTarget.nextMessageBlocking() instanceof VersionAck);
         if (versionMessage.isBloomFilteringSupported()) {
@@ -101,8 +101,8 @@ public class TestWithPeerGroup extends TestWithNetworkConnections {
         InboundMessageQueuer writeTarget = newPeerWriteTargetQueue.take();
         checkArgument(versionMessage.hasBlockChain());
         // Complete handshake with the peer - send/receive version(ack)s, receive bloom filter
-        writeTarget.sendMessage(versionMessage);
-        writeTarget.sendMessage(new VersionAck());
+        writeTarget.sendLowPriorityMessage(versionMessage);
+        writeTarget.sendLowPriorityMessage(new VersionAck());
         assertTrue(writeTarget.nextMessageBlocking() instanceof VersionMessage);
         assertTrue(writeTarget.nextMessageBlocking() instanceof VersionAck);
         if (versionMessage.isBloomFilteringSupported()) {

@@ -1504,11 +1504,11 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     /**
      * Broadcast a message to all peers but peerToSkip 
      */
-    public void broadcastMessage(Message message, Peer peerToSkip) {
+    public void broadcastLowPriorityMessage(Message message, Peer peerToSkip) {
         for (Peer peer : peers) {
             try {
                 if (peerToSkip==null || !peer.equals(peerToSkip)) {
-                    peer.sendMessage(message);                    
+                    peer.sendLowPriorityMessage(message);                    
                 }
             } catch (Exception e) {
                 log.error("Caught exception sending {} to {}", message, peer, e);
@@ -1519,12 +1519,12 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     /**
      * Broadcast a udp message to all peers but peerToSkip 
      */
-    public void broadcastUDPMessage(Message message, Peer peerToSkip) {
+    public void broadcastHighPriorityMessage(Message message, Peer peerToSkip) {
         for (Peer peer : peers) {
             try {
                 if (peerToSkip==null || !peer.equals(peerToSkip)) {
                     if (peer.getPeerVersionMessage().acceptUdp()) {
-                        peer.sendUDPMessage(message);                        
+                        peer.sendHighPriorityMessage(message);                        
                     }
                 }
             } catch (Exception e) {
@@ -1538,12 +1538,12 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
      */
     public void broadcastMinedBlock(Block block) {
         PushHeader pushHeader = new PushHeader(params, block.cloneAsHeader());
-        broadcastUDPMessage(pushHeader, null);
+        broadcastHighPriorityMessage(pushHeader, null);
         
         //broadcastMessage(pushHeader, null);
 
         PushTransactionList pushTransactionList = new PushTransactionList(params, block);
-        broadcastMessage(pushTransactionList, null);
+        broadcastLowPriorityMessage(pushTransactionList, null);
     }
 
 
@@ -1561,7 +1561,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     public void broadcastBlock(Block block, Peer peerToSkip) {
         InventoryMessage inv = new InventoryMessage(params);
         inv.addBlock(block);
-        broadcastMessage(inv, peerToSkip);
+        broadcastLowPriorityMessage(inv, peerToSkip);
     }
 
     /**
@@ -1580,7 +1580,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     public void broadcastTransactionToAllBut(Transaction tx, Peer peerToSkip) {
         InventoryMessage inv = new InventoryMessage(params);
         inv.addTransaction(tx);
-        broadcastMessage(inv, peerToSkip);
+        broadcastLowPriorityMessage(inv, peerToSkip);
     }
     
     

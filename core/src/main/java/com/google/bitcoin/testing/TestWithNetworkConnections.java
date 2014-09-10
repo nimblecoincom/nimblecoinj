@@ -168,8 +168,8 @@ public class TestWithNetworkConnections {
         InboundMessageQueuer writeTarget = newPeerWriteTargetQueue.take();
         writeTarget.peer = peer;
         // Complete handshake with the peer - send/receive version(ack)s, receive bloom filter
-        writeTarget.sendMessage(versionMessage);
-        writeTarget.sendMessage(new VersionAck());
+        writeTarget.sendLowPriorityMessage(versionMessage);
+        writeTarget.sendLowPriorityMessage(new VersionAck());
         try {
             checkState(writeTarget.nextMessageBlocking() instanceof VersionMessage);
             checkState(writeTarget.nextMessageBlocking() instanceof VersionAck);
@@ -188,14 +188,14 @@ public class TestWithNetworkConnections {
     }
 
     protected void inbound(InboundMessageQueuer peerChannel, Message message) {
-        peerChannel.sendMessage(message);
+        peerChannel.sendLowPriorityMessage(message);
     }
 
     private void outboundPingAndWait(final InboundMessageQueuer p, long nonce) throws Exception {
         // Send a ping and wait for it to get to the other side
         SettableFuture<Void> pingReceivedFuture = SettableFuture.create();
         p.mapPingFutures.put(nonce, pingReceivedFuture);
-        p.peer.sendMessage(new Ping(nonce));
+        p.peer.sendLowPriorityMessage(new Ping(nonce));
         pingReceivedFuture.get();
         p.mapPingFutures.remove(nonce);
     }
