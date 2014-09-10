@@ -26,6 +26,11 @@ public class NetboxParams extends RegTestParams{
     // Base port for net in a box test. Nodes should accept connections on port 19001, 19002, etc.
     public final static int BASE_NETBOX_PORT = 19000;
 
+    public NetboxParams() {
+        super();
+        id = ID_NETBOX;
+    }
+    
     public static synchronized NetboxParams get() {
         if (instance == null) {
             instance = new NetboxParams();
