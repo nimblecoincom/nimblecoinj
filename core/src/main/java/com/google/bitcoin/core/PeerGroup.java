@@ -300,6 +300,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     private int serverPort;
     //Whether to accept udp messages
     private boolean acceptUdp = false;
+    private volatile Timer highPriorityMessagesTimer;
     
 
     /**
@@ -784,6 +785,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     protected void startUp() throws Exception {
         // This is run in a background thread by the Service implementation.
         vPingTimer = new Timer("Peer pinging thread", true);
+        highPriorityMessagesTimer = new Timer("High priority messages timer", true);
         channels.startAsync();
         channels.awaitRunning();
         if (startServer) {
@@ -810,6 +812,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     protected void shutDown() throws Exception {
         // This is run on a separate thread by the Service implementation.
         vPingTimer.cancel();
+        highPriorityMessagesTimer.cancel();
         // Blocking close of all sockets.
         channels.stopAsync();
         channels.awaitTerminated();
@@ -1505,27 +1508,32 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
      * Broadcast a message to all peers but peerToSkip 
      */
     public void broadcastLowPriorityMessage(Message message, Peer peerToSkip) {
-        for (Peer peer : peers) {
-            try {
-                if (peerToSkip==null || !peer.equals(peerToSkip)) {
-                    peer.sendLowPriorityMessage(message);                    
-                }
-            } catch (Exception e) {
-                log.error("Caught exception sending {} to {}", message, peer, e);
-            }
-        }        
+        broadcastMessage(message, false, true, true, peerToSkip, null);
     }
 
     /**
      * Broadcast a udp message to all peers but peerToSkip 
      */
     public void broadcastHighPriorityMessage(Message message, Peer peerToSkip) {
+        broadcastMessage(message, true, true, false, peerToSkip, null);
+    }
+
+    private void broadcastMessage(Message message, 
+                                 boolean highPriority, 
+                                 boolean includePeersSupportingHighPriorityMessages,
+                                 boolean includePeersNotSupportingHighPriorityMessages,
+                                 Peer peerToSkip, 
+                                 Sha256Hash skipPeersWhichAlreadyReceivedThisHeader) {
         for (Peer peer : peers) {
             try {
-                if (peerToSkip==null || !peer.equals(peerToSkip)) {
-                    if (peer.getPeerVersionMessage().acceptUdp()) {
-                        peer.sendHighPriorityMessage(message);                        
-                    }
+                if (peerToSkip!=null && peer.equals(peerToSkip)) continue;
+                if (skipPeersWhichAlreadyReceivedThisHeader!=null && peer.knowsAboutHeader(skipPeersWhichAlreadyReceivedThisHeader)) continue;
+                if (!includePeersSupportingHighPriorityMessages && peer.getPeerVersionMessage().acceptUdp()) continue;
+                if (!includePeersNotSupportingHighPriorityMessages && !peer.getPeerVersionMessage().acceptUdp()) continue;
+                if (highPriority) {
+                    peer.sendHighPriorityMessage(message);                        
+                } else {
+                    peer.sendLowPriorityMessage(message);                        
                 }
             } catch (Exception e) {
                 log.error("Caught exception sending {} to {}", message, peer, e);
@@ -1533,19 +1541,33 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         }        
     }
     
+    
     /**
      * Broadcast a block I just mined using pushheader and pushtxlist
      */
     public void broadcastMinedBlock(Block block) {
-        PushHeader pushHeader = new PushHeader(params, block.cloneAsHeader());
-        broadcastHighPriorityMessage(pushHeader, null);
-        
-        //broadcastMessage(pushHeader, null);
-
+        final PushHeader pushHeader = new PushHeader(params, block.cloneAsHeader());
+        broadcastPushHeader(pushHeader, null);
+        //Broadcast PushTransactionList
         PushTransactionList pushTransactionList = new PushTransactionList(params, block);
         broadcastLowPriorityMessage(pushTransactionList, null);
     }
 
+    public void broadcastPushHeader(final PushHeader pushHeader, final Peer peerToSkip) {
+        //Broadcast header by udp
+        broadcastMessage(pushHeader, true, true, false, peerToSkip, null);
+        final long interval = 200;
+        final TimerTask task = new TimerTask() {
+            @Override
+            public void run() {
+                //Broadcast header by tcp to all peers which haven't received it 
+                broadcastMessage(pushHeader, false, true, false, peerToSkip, pushHeader.getHash());
+            }
+        };
+        highPriorityMessagesTimer.schedule(task, interval);        
+        //Broadcast header by tcp to peers not supportind udp
+        broadcastMessage(pushHeader, false, false, true, peerToSkip, null);        
+    }
 
     
     /**

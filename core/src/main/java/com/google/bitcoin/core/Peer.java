@@ -48,6 +48,8 @@ import com.google.bitcoin.utils.ListenerRegistration;
 import com.google.bitcoin.utils.Threading;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -157,6 +159,9 @@ public class Peer extends PeerSocketHandler {
     // True if we tried to connect to this peer. False if this peer tried to connect to us. 
     private boolean initiatedByPeer = false;
 
+    // Should be a Set but could not find a size limited set in java
+    Cache<Sha256Hash, Sha256Hash> headersThisPeerKnowsAbout;
+    
     /**
      * <p>Construct a peer that reads/writes from the given block chain.</p>
      *
@@ -171,6 +176,7 @@ public class Peer extends PeerSocketHandler {
      */
     public Peer(PeerGroup peerGroup, NetworkParameters params, VersionMessage ver, @Nullable AbstractBlockChain chain, PeerAddress remoteAddress) {
         this(peerGroup, params, ver, remoteAddress, chain, null);
+        //builder.b
     }
 
     /**
@@ -244,6 +250,7 @@ public class Peer extends PeerSocketHandler {
         this.wallets = new CopyOnWriteArrayList<Wallet>();
         this.memoryPool = mempool;
         this.initiatedByPeer = initiatedByPeer;
+        this.headersThisPeerKnowsAbout = CacheBuilder.newBuilder().maximumSize(100).build();
     }
 
     /**
@@ -354,7 +361,7 @@ public class Peer extends PeerSocketHandler {
     }
     
     private enum TransportProtocol {TCP, UDP};
-
+    
     @Override
     protected void processHighPriorityMessage(long nodeId, Message m) {
         if(vPeerVersionMessage.getNonce() == nodeId) {
@@ -395,6 +402,8 @@ public class Peer extends PeerSocketHandler {
             processNotFoundMessage((NotFoundMessage) m);
         } else if (m instanceof PushHeader) {
             processPushHeader((PushHeader) m, TransportProtocol.TCP);
+        } else if (m instanceof PushHeaderAck) {
+            processPushHeaderAck((PushHeaderAck) m);
         } else if (m instanceof PushTransactionList) {
             processPushTransactionList((PushTransactionList) m);
         } else if (m instanceof InventoryMessage) {
@@ -543,26 +552,32 @@ public class Peer extends PeerSocketHandler {
             log.warn("Received pushheader when Peer is not configured with a chain.");
             return;
         }
+
+        headersThisPeerKnowsAbout.put(m.getHash(), m.getHash());
+
+        if (transportProtocol.equals(TransportProtocol.UDP)) {
+            sendLowPriorityMessage(new PushHeaderAck(params, m.getHash()));            
+        }
         
         MessageIdentifier messageIdentifier = new MessageIdentifier(m.getClass(), m.getHash());
         boolean shouldProcess = peerGroup.shouldProcessReceivedMessage(messageIdentifier);
         if (!shouldProcess) return;
         
-
         try {
             Block header = m.getBlockHeader();
-            if (blockChain.addHeaderWaitingForItsTransactions(header)) {
+            if (blockChain.addHeaderWaitingForItsTransactions(header)) {                
                 // The block was successfully added to headersWaitingForItsTransactions
-                if (transportProtocol.equals(TransportProtocol.TCP)) {
-                    peerGroup.broadcastLowPriorityMessage(m, this);                    
-                } else {
-                    peerGroup.broadcastHighPriorityMessage(m, this);
-                }
+                peerGroup.broadcastPushHeader(m, this);                    
             }
                 
         } catch (VerificationException e) {
             log.warn("Block header verification failed", e);
         }
+        
+    }
+
+    private void processPushHeaderAck(PushHeaderAck m) {
+        headersThisPeerKnowsAbout.put(m.getHash(), m.getHash());        
     }
     
 
@@ -1805,6 +1820,10 @@ public class Peer extends PeerSocketHandler {
     @Override
     protected long getSelfNodeId() {
         return versionMessage.getNonce();
+    }
+    
+    public boolean knowsAboutHeader(Sha256Hash hash) {
+        return headersThisPeerKnowsAbout.getIfPresent(hash) != null;
     }
     
 }

@@ -8,8 +8,6 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.bitcoin.core.Utils;
-
 public class UDPSocketThread extends Thread {
     
     private static final Logger log = LoggerFactory.getLogger(UDPSocketThread.class);
@@ -20,6 +18,7 @@ public class UDPSocketThread extends Thread {
     private boolean stopSignal = false;
         
     public UDPSocketThread(DatagramSocket datagramSocket, Set<BlockingClient> clients) {
+        super("UDP socket handler thread");
         this.datagramSocket=datagramSocket;
         this.clients = clients;
     }

@@ -72,6 +72,7 @@ public class BitcoinSerializer {
         names.put(MemoryPoolMessage.class, "mempool");
         names.put(RejectMessage.class, "reject");
         names.put(PushHeader.class, "pushheader");
+        names.put(PushHeaderAck.class, "pheaderack");
         names.put(PushTransactionList.class, "pushtxlist");
     }
 
@@ -238,6 +239,8 @@ public class BitcoinSerializer {
             return new RejectMessage(params, payloadBytes);
         } else if (command.equals("pushheader")) {
             return new PushHeader(params, payloadBytes);
+        } else if (command.equals("pheaderack")) {
+            return new PushHeaderAck(params, payloadBytes);
         } else if (command.equals("pushtxlist")) {
             return new PushTransactionList(params, payloadBytes);
         } else {
