@@ -1074,6 +1074,15 @@ public abstract class AbstractBlockChain {
         }
     }
 
+    public Block getOrphan(Sha256Hash blockHash) {
+        lock.lock();
+        try {
+            return orphanBlocks.get(blockHash).block;
+        } finally {
+            lock.unlock();
+        }
+    }
+    
     
     /**
      * Returns an estimate of when the given block will be reached, assuming a perfect 10 minute average for each

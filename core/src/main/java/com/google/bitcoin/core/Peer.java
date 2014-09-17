@@ -366,6 +366,7 @@ public class Peer extends PeerSocketHandler {
     protected void processHighPriorityMessage(long nodeId, Message m) {
         if(vPeerVersionMessage.getNonce() == nodeId) {
             maybeDelay(m);
+            log.info("{}: Received high priority message {} {}", getAddress(), m.getClass().getSimpleName(), m.toString());
             if (m instanceof PushHeader) {
                 processPushHeader((PushHeader) m, TransportProtocol.UDP);
             }
@@ -375,7 +376,7 @@ public class Peer extends PeerSocketHandler {
     protected void processLowPriorityMessage(Message m) throws Exception {
         maybeDelay(m);
         if (!(m instanceof Ping) && ! (m instanceof Pong)) {        
-            log.info("{}: Received message {} {}", getAddress(), m.getClass().getSimpleName(), m.toString());
+            log.info("{}: Received low priority message {} {}", getAddress(), m.getClass().getSimpleName(), m.toString());
         }
         // Allow event listeners to filter the message stream. Listeners are allowed to drop messages by
         // returning null.
@@ -781,14 +782,25 @@ public class Peer extends PeerSocketHandler {
             FullPrunedBlockStore fullPrunedBlockStore = (FullPrunedBlockStore) blockChain.getBlockStore();
             for (InventoryItem item: getdata.getItems()) {
                 if (item.type.equals(InventoryItem.Type.Block)) {
-                    Block block = fullPrunedBlockStore.get(item.hash).getHeader().cloneAsHeader();
-                    StoredUndoableBlock storedUndoableBlock = fullPrunedBlockStore.getUndoBlock(block.getHash());
-                    for (Transaction t : storedUndoableBlock.getTransactions()) {
-                        block.addTransaction(t);                    
-                    }                    
-                    items.add(block);
-                    if (block.equals(lastInvNumber500SentAsPartOfBlockChainUpload)) {
-                        resendChainHead = true;
+                    blockChain.getLock().lock();
+                    try {                        
+                        if (blockChain.isOrphan(item.hash)) {
+                            Block block = blockChain.getOrphan(item.hash);
+                            log.info("GetData requested for orphan block {}", item.hash);
+                            items.add(block);
+                        } else {
+                            Block block = fullPrunedBlockStore.get(item.hash).getHeader().cloneAsHeader();
+                            StoredUndoableBlock storedUndoableBlock = fullPrunedBlockStore.getUndoBlock(block.getHash());
+                            for (Transaction t : storedUndoableBlock.getTransactions()) {
+                                block.addTransaction(t);                    
+                            }                    
+                            items.add(block);
+                            if (block.equals(lastInvNumber500SentAsPartOfBlockChainUpload)) {
+                                resendChainHead = true;
+                            }                        
+                        }
+                    } finally {
+                        blockChain.getLock().unlock();
                     }
                 }
             }            

@@ -42,6 +42,6 @@ do
 #  else
     DEBUG_PARAMS='-agentlib:jdwp=transport=dt_socket,address='$DEBUG_PORT',server=y,suspend=n'
 #  fi 
-  java -Xdebug $DEBUG_PARAMS -Djava.util.logging.config.file=file-logging.properties -server -jar ../target/nimblecoinj-tools-*.jar sync --mode=FULL --net=NETBOX --wallet=data/netbox$i.wallet --chain=data/netbox$i.chain --debuglog --server --server-port=$PORT --netbox-nodes=$NODES --netbox-peers=$PEERS $MINER_PARAMS --waitfor=EVER &
+  java -Xdebug $DEBUG_PARAMS -Djava.util.logging.config.file=file-logging.properties -server -jar ../target/nimblecoinj-tools-*.jar sync --mode=FULL --net=NETBOX --wallet=data/netbox$i.wallet --chain=data/netbox$i.chain --debuglog --server --server-port=$PORT --accept-udp --netbox-nodes=$NODES --netbox-peers=$PEERS $MINER_PARAMS --waitfor=EVER &
   sleep 0.3
 done

@@ -86,6 +86,7 @@ public class BlockingClient implements MessageWriteTarget {
         this.parser = parser; 
         socket = _socket;
         datagramSocket = _datagramSocket;
+        udpAddress = _socket.getInetAddress();        
         Thread t = new SocketThread(clientSet, true, socket.getRemoteSocketAddress(), 0, parser);
         t.start();
     }
