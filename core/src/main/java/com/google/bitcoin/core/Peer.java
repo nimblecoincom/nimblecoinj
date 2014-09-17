@@ -598,9 +598,11 @@ public class Peer extends PeerSocketHandler {
         final Block blockHeader = blockChain.getHeadersWaitingForItsTransactions().get(blockHash);
         if (blockHeader==null) {
             log.info("Received pushtxlist but the pushheader not arrived yet or was already processed.");
-            InventoryMessage inv = new InventoryMessage(params);
-            inv.addItem(new InventoryItem(InventoryItem.Type.Block, blockHash));
-            processInv(inv);
+            if (!blockChain.isOrphan(blockHash) && blockChain.getBlockStore().get(blockHash)==null) {
+                InventoryMessage inv = new InventoryMessage(params);
+                inv.addItem(new InventoryItem(InventoryItem.Type.Block, blockHash));
+                processInv(inv);                
+            }
             return;                
         }
         List<Sha256Hash> transactionHashes = m.getTransactionHashes();
