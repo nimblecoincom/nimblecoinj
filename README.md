@@ -1,3 +1,10 @@
+NimblecoinJ
+===========
+
+NimblecoinJ is the reference implementation for the cryptocurrency Nimblecoin 
+See http://www.nimblecoin.com for more information
+
+
 To get started, ensure you have the latest JDK installed, and download Maven from:
 
   http://maven.apache.org/
